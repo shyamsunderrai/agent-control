@@ -84,7 +84,7 @@ uv run pytest  # Run tests
 
 ```python
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def main():
     async with AgentProtectClient() as client:
@@ -148,22 +148,34 @@ asyncio.run(main())
 
 [📖 Full documentation](server/README.md)
 
-### 🔧 agent-protect-sdk
+### 🔧 agent-protect
 
-**Purpose**: Python SDK for consuming the server API
+**Purpose**: Unified Python SDK for agent protection, monitoring, and rule enforcement
 
 **Key Features**:
-- Async/await client
+- Simple initialization with `agent_protect.init()`
+- `@protect` decorator for rule enforcement
+- Async HTTP client for server communication
 - Type-safe with Pydantic models
-- Context manager support
-- Automatic connection management
-- Comprehensive error handling
+- Auto-discovery of rules and configuration
+- Agent registration and metadata tracking
 
 **Usage**:
 ```python
-from agent_protect_sdk import AgentProtectClient
+import agent_protect
 
-async with AgentProtectClient(base_url="http://localhost:8000") as client:
+# Initialize once
+agent_protect.init(agent_name="My Bot", agent_id="bot-v1")
+
+# Use decorator
+from agent_protect import protect
+
+@protect('input-check', input='message')
+async def handle(message: str):
+    return message
+
+# Or use client directly
+async with agent_protect.AgentProtectClient() as client:
     result = await client.check_protection("test content")
 ```
 
@@ -239,8 +251,8 @@ async def scan_url(request: ScanRequest) -> ScanResult:
 3. **Use in SDK** (in `sdk/`):
 
 ```python
-# sdk/src/agent_protect_sdk/client.py
-from agent_protect_models import ScanRequest, ScanResult
+# sdks/python/src/agent_protect/__init__.py
+from agent_protect_models import ProtectionRequest, ProtectionResult
 
 async def scan_url(self, url: str, deep: bool = False) -> ScanResult:
     request = ScanRequest(url=url, deep_scan=deep)
@@ -284,9 +296,8 @@ agent-protect/
         ├── pyproject.toml  # Python SDK package config
         ├── README.md       # Python SDK documentation
         └── src/
-            └── agent_protect_sdk/
-                ├── __init__.py
-                └── client.py   # SDK client
+            └── agent_protect/
+                └── __init__.py  # Unified SDK: client, init, protect decorator
 ```
 
 ### Running Tests
@@ -409,7 +420,7 @@ When the server is running, visit:
 
 ```python
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def check_content(text: str):
     async with AgentProtectClient() as client:
@@ -425,7 +436,7 @@ print(f"Is safe: {is_safe}")
 
 ```python
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def check_batch(texts: list[str]):
     async with AgentProtectClient() as client:
@@ -446,7 +457,7 @@ for text, result in zip(texts, results):
 
 ```python
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def check_with_context():
     async with AgentProtectClient() as client:

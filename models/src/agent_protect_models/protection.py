@@ -6,6 +6,37 @@ from pydantic import Field
 
 from .base import BaseModel
 
+class Agent(BaseModel):
+    """
+    Agent metadata for registration and tracking.
+    
+    Attributes:
+        agent_id: Unique identifier for the agent (user-defined)
+        agent_name: Human-readable name for the agent
+        agent_description: Optional description of the agent's purpose
+        agent_created_at: Timestamp when agent was created
+        agent_updated_at: Timestamp when agent was last updated
+        agent_version: Optional version string
+        agent_metadata: Optional additional metadata
+    """
+    agent_id: str
+    agent_name: str
+    agent_description: Optional[str] = None
+    agent_created_at: Optional[str] = None
+    agent_updated_at: Optional[str] = None
+    agent_version: Optional[str] = None
+    agent_metadata: Optional[dict] = None
+
+# 1. agent_protect.init() -> 
+# Make a request to the server to register the agent
+# InitProtectRequest(agent_name, agent_id, agent_description, agent_tools) -> InitProtectResponse *(Policy(multiple Controls) or Errors)*
+# 
+# 
+# class AgentTool(BaseModel):
+#     tool_name: str
+#     arguments: Optional[List[jsonSchema]] = None  <<-- TBD
+#     output_schema: jsonSchema
+
 
 class ProtectionRequest(BaseModel):
     """

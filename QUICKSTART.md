@@ -56,7 +56,7 @@ Open a new terminal (keep the server running) and create a test file:
 ```python
 # test_client.py
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def main():
     async with AgentProtectClient() as client:
@@ -116,10 +116,11 @@ agent-protect/
 │   │   └── config.py         # Configuration
 │   └── pyproject.toml
 │
-├── sdk/                       # 🔧 Python SDK
-│   ├── src/agent_protect_sdk/
-│   │   └── client.py         # SDK client
-│   └── pyproject.toml
+├── sdks/                      # 🔧 SDKs workspace
+│   └── python/
+│       ├── src/agent_protect/
+│       │   └── __init__.py   # Unified SDK client
+│       └── pyproject.toml
 │
 └── examples/                  # 📚 Usage examples
     ├── basic_usage.py
@@ -192,7 +193,7 @@ async def new_endpoint(request: NewRequest) -> NewResponse:
     return NewResponse(result="processed")
 ```
 
-3. **Add SDK method** (in `sdk/src/agent_protect_sdk/client.py`):
+3. **Add SDK method** (in `sdks/python/src/agent_protect/__init__.py`):
 
 ```python
 async def call_new_endpoint(self, data: str) -> NewResponse:
@@ -274,7 +275,7 @@ uv run agent-protect-server
 Configure the client in your code:
 
 ```python
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 # Local development
 client = AgentProtectClient(base_url="http://localhost:8000")

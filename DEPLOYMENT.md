@@ -67,7 +67,7 @@ uv run uvicorn agent_protect_server.main:app --reload --host 0.0.0.0 --port 8000
 # Create a test script
 cat > test_sdk.py << 'EOF'
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def main():
     async with AgentProtectClient(base_url="http://localhost:8000") as client:
@@ -378,9 +378,9 @@ pip install git+https://github.com/yourusername/agent-protect.git#subdirectory=s
 cd sdks/python
 uv build
 
-# Distribute dist/agent_protect_sdk-0.1.0-py3-none-any.whl
+# Distribute dist/agent_protect-0.1.0-py3-none-any.whl
 # Users install with:
-pip install agent_protect_sdk-0.1.0-py3-none-any.whl
+pip install agent_protect-0.1.0-py3-none-any.whl
 ```
 
 ## Environment Configuration
@@ -409,7 +409,7 @@ REDIS_URL=redis://localhost:6379
 SDK users configure via code:
 
 ```python
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 # Development
 client = AgentProtectClient(base_url="http://localhost:8000")
@@ -544,7 +544,7 @@ curl http://localhost:8000/health
 
 ```python
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def check():
     try:

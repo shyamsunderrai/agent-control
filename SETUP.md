@@ -69,7 +69,7 @@ uv run agent-protect-server --help
 
 ```bash
 cd sdks
-uv run python -c "from agent_protect_sdk import AgentProtectClient; print('✓ SDK imported successfully')"
+uv run python -c "from agent_protect import AgentProtectClient; print('✓ SDK imported successfully')"
 ```
 
 ## Step 4: Run the Server
@@ -123,7 +123,7 @@ Create a test file:
 ```python
 # test_sdk.py
 import asyncio
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 async def main():
     async with AgentProtectClient(base_url="http://localhost:8000") as client:
@@ -216,9 +216,8 @@ agent-protect/
 │       ├── pyproject.toml
 │       ├── README.md
 │       └── src/
-│           └── agent_protect_sdk/
-│               ├── __init__.py
-│               └── client.py
+│           └── agent_protect/
+│               └── __init__.py  # Unified SDK
 │
 └── examples/               # Usage examples
     ├── basic_usage.py

@@ -1,8 +1,8 @@
-"""Basic usage example for Agent Protect SDK."""
+"""Basic usage example for Agent Protect."""
 
 import asyncio
 
-from agent_protect_sdk import AgentProtectClient
+from agent_protect import AgentProtectClient
 
 
 async def main() -> None:
