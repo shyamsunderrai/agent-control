@@ -2,20 +2,18 @@
 Tests for the LangGraph agent with Agent Protect integration.
 """
 
-import asyncio
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from langchain_core.messages import HumanMessage, AIMessage
+import pytest
 from agent import (
-    AgentState,
-    safety_check_node,
-    should_continue,
-    reject_node,
     agent_node,
     create_graph,
+    reject_node,
     run_agent,
+    safety_check_node,
+    should_continue,
 )
+from langchain_core.messages import AIMessage, HumanMessage
 
 
 class TestSafetyCheckNode:
@@ -26,7 +24,7 @@ class TestSafetyCheckNode:
         """Test safety check with empty message list."""
         state = {"messages": [], "safety_check_passed": True, "safety_reason": ""}
         result = await safety_check_node(state)
-        
+
         assert result["safety_check_passed"] is True
         assert result["safety_reason"] == "No user input to check"
 
@@ -39,7 +37,7 @@ class TestSafetyCheckNode:
             "safety_reason": ""
         }
         result = await safety_check_node(state)
-        
+
         assert result["safety_check_passed"] is True
         assert result["safety_reason"] == "No user input to check"
 
@@ -53,7 +51,7 @@ class TestSafetyCheckNode:
             "safety_reason": ""
         }
         result = await safety_check_node(state)
-        
+
         assert result["safety_check_passed"] is True
         assert result["safety_reason"] == "Agent Protect not configured"
 
@@ -66,18 +64,18 @@ class TestSafetyCheckNode:
         mock_result = MagicMock()
         mock_result.is_safe = True
         mock_result.reason = "Content is safe"
-        
+
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value.check_protection.return_value = mock_result
         mock_client_class.return_value = mock_client
-        
+
         state = {
             "messages": [HumanMessage(content="Hello, how are you?")],
             "safety_check_passed": True,
             "safety_reason": ""
         }
         result = await safety_check_node(state)
-        
+
         assert result["safety_check_passed"] is True
         assert result["safety_reason"] == "Content is safe"
 
@@ -90,18 +88,18 @@ class TestSafetyCheckNode:
         mock_result = MagicMock()
         mock_result.is_safe = False
         mock_result.reason = "Content contains inappropriate language"
-        
+
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value.check_protection.return_value = mock_result
         mock_client_class.return_value = mock_client
-        
+
         state = {
             "messages": [HumanMessage(content="Unsafe content")],
             "safety_check_passed": True,
             "safety_reason": ""
         }
         result = await safety_check_node(state)
-        
+
         assert result["safety_check_passed"] is False
         assert "inappropriate language" in result["safety_reason"]
 
@@ -139,7 +137,7 @@ class TestRejectNode:
             "safety_reason": "Contains inappropriate content"
         }
         result = reject_node(state)
-        
+
         assert "messages" in result
         assert len(result["messages"]) == 1
         assert isinstance(result["messages"][0], AIMessage)
@@ -152,7 +150,7 @@ class TestRejectNode:
             "safety_check_passed": False
         }
         result = reject_node(state)
-        
+
         assert "messages" in result
         assert "safety checks" in result["messages"][0].content.lower()
 
@@ -169,14 +167,14 @@ class TestAgentNode:
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = mock_response
         mock_chat_class.return_value = mock_llm
-        
+
         state = {
             "messages": [HumanMessage(content="Hello!")],
             "safety_check_passed": True,
             "safety_reason": ""
         }
         result = await agent_node(state)
-        
+
         assert "messages" in result
         assert len(result["messages"]) == 1
         assert result["messages"][0].content == "I'm here to help!"
@@ -200,9 +198,9 @@ class TestGraph:
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = mock_response
         mock_chat_class.return_value = mock_llm
-        
+
         response = await run_agent("Hello!")
-        
+
         assert response == "Hello! How can I help you today?"
 
 
@@ -219,19 +217,19 @@ class TestIntegration:
         mock_result = MagicMock()
         mock_result.is_safe = True
         mock_result.reason = "Content is safe"
-        
+
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value.check_protection.return_value = mock_result
         mock_client_class.return_value = mock_client
-        
+
         # Mock LLM
         mock_response = AIMessage(content="Sure, I can help with that!")
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = mock_response
         mock_chat_class.return_value = mock_llm
-        
+
         response = await run_agent("Can you help me?")
-        
+
         assert response == "Sure, I can help with that!"
 
     @pytest.mark.asyncio
@@ -244,16 +242,16 @@ class TestIntegration:
         mock_result = MagicMock()
         mock_result.is_safe = False
         mock_result.reason = "Inappropriate content detected"
-        
+
         mock_client = AsyncMock()
         mock_client.__aenter__.return_value.check_protection.return_value = mock_result
         mock_client_class.return_value = mock_client
-        
+
         # Mock LLM (should not be called)
         mock_chat_class.return_value = AsyncMock()
-        
+
         response = await run_agent("Unsafe message")
-        
+
         assert "sorry" in response.lower()
         assert "inappropriate content" in response.lower()
 

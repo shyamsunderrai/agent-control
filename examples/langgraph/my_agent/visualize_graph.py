@@ -11,7 +11,7 @@ from agent import create_graph
 def visualize_graph():
     """Generate and display the graph visualization."""
     graph = create_graph()
-    
+
     try:
         # Try to create a mermaid diagram
         print("Graph Structure (Mermaid Diagram):")
@@ -23,14 +23,14 @@ def visualize_graph():
     except Exception as e:
         print(f"Error generating visualization: {e}")
         print("Install mermaid support or use LangGraph Studio for visualization")
-    
+
     # Print text representation
     print("\nGraph Nodes:")
     print("=" * 60)
     nodes = ["safety_check", "reject", "agent"]
     for node in nodes:
         print(f"  - {node}")
-    
+
     print("\nGraph Edges:")
     print("=" * 60)
     print("  - START → safety_check")

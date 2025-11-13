@@ -32,7 +32,7 @@ def generate_openapi_spec(output_path: str = "openapi.json") -> None:
     print(f"✓ OpenAPI spec generated: {output_file.absolute()}")
     print(f"  Version: {openapi_schema['info']['version']}")
     print(f"  Title: {openapi_schema['info']['title']}")
-    print(f"\nUse this spec to generate SDKs:")
+    print("\nUse this spec to generate SDKs:")
     print(f"  TypeScript: openapi-generator-cli generate -i {output_path} -g typescript-axios")
     print(f"  Go: openapi-generator-cli generate -i {output_path} -g go")
     print(f"  Rust: openapi-generator-cli generate -i {output_path} -g rust")

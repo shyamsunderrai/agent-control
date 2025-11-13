@@ -1,6 +1,6 @@
 """Base models and utilities for Agent Protect."""
 
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ConfigDict
@@ -9,7 +9,7 @@ from pydantic import ConfigDict
 class BaseModel(PydanticBaseModel):
     """
     Base model for all Agent Protect models.
-    
+
     Provides common configuration and utilities for JSON serialization
     and Pydantic compatibility.
     """
@@ -25,10 +25,10 @@ class BaseModel(PydanticBaseModel):
         extra="ignore",
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert model to dictionary.
-        
+
         Returns:
             Dictionary representation of the model
         """
@@ -37,20 +37,20 @@ class BaseModel(PydanticBaseModel):
     def to_json(self) -> str:
         """
         Convert model to JSON string.
-        
+
         Returns:
             JSON string representation of the model
         """
         return self.model_dump_json(exclude_none=True)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BaseModel":
+    def from_dict(cls, data: dict[str, Any]) -> "BaseModel":
         """
         Create model instance from dictionary.
-        
+
         Args:
             data: Dictionary containing model data
-            
+
         Returns:
             New model instance
         """
@@ -60,10 +60,10 @@ class BaseModel(PydanticBaseModel):
     def from_json(cls, json_str: str) -> "BaseModel":
         """
         Create model instance from JSON string.
-        
+
         Args:
             json_str: JSON string containing model data
-            
+
         Returns:
             New model instance
         """

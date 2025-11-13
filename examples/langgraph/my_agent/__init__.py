@@ -8,8 +8,8 @@ with a LangGraph agent for safe AI interactions.
 from .agent import (
     AgentState,
     create_graph,
-    run_agent,
     graph,
+    run_agent,
 )
 
 __all__ = [

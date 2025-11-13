@@ -3,10 +3,11 @@
 __version__ = "0.1.0"
 
 from .health import HealthResponse
-from .protection import ProtectionRequest, ProtectionResponse, ProtectionResult
+from .protection import Agent, ProtectionRequest, ProtectionResponse, ProtectionResult
 
 __all__ = [
     "HealthResponse",
+    "Agent",
     "ProtectionRequest",
     "ProtectionResponse",
     "ProtectionResult",

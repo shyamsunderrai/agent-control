@@ -6,7 +6,8 @@ Run this file to see exactly what data is available at each stage.
 
 import asyncio
 from pathlib import Path
-from protect_engine import protect, init_protect_engine, RuleViolation
+
+from protect_engine import RuleViolation, init_protect_engine, protect
 
 # Initialize the engine
 rules_file = Path(__file__).parent / "rules.yaml"
@@ -30,7 +31,7 @@ async def example1(user_message: str):
     """
     Decorator mapping:
         input='user_message'
-        
+
     This means: Extract the 'user_message' parameter and check it as 'input'
     """
     return f"Processed: {user_message}"
@@ -181,6 +182,7 @@ print("-" * 80)
 
 from typing import TypedDict
 
+
 class AgentState(TypedDict):
     messages: list
     context: dict
@@ -283,7 +285,7 @@ print("-" * 80)
 
 async def demonstrate_real_execution():
     """Actually run the decorated functions to show what happens."""
-    
+
     # Test 1: Safe input
     print("Test 1: Safe input")
     print("  Calling: await example1('Safe message')")
@@ -293,7 +295,7 @@ async def demonstrate_real_execution():
     except RuleViolation as e:
         print(f"  ✗ Blocked: {e.message}")
     print()
-    
+
     # Test 2: Input with restricted name (should fail)
     print("Test 2: Input with restricted name")
     print("  Calling: await example1('Message from Nachiket')")
@@ -303,7 +305,7 @@ async def demonstrate_real_execution():
     except RuleViolation as e:
         print(f"  ✗ Blocked: {e.message}")
     print()
-    
+
     # Test 3: Multiple parameters
     print("Test 3: Multiple parameters")
     print("  Calling: await example2('view_data', {'tier': 'premium'}, {'ip': '1.1.1.1'})")

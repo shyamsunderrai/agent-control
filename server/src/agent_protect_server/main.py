@@ -1,8 +1,7 @@
 """Main server application entry point."""
 
-from fastapi import FastAPI
-
 from agent_protect_models import HealthResponse, ProtectionRequest, ProtectionResponse
+from fastapi import FastAPI
 
 app = FastAPI(
     title="Agent Protect Server",

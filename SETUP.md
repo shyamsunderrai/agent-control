@@ -34,7 +34,7 @@ You should see something like: `uv 0.x.x`
 
 ## Step 2: Install Project Dependencies
 
-This project uses **separate workspaces** for server and SDKs. Install dependencies in each workspace:
+This project uses a root **uv workspace** with three members (models, server, sdk). Install dependencies per member or use the Makefile:
 
 ### Install Server Dependencies
 
@@ -48,11 +48,18 @@ This will install the server and its dependencies, including the models package 
 ### Install SDK Dependencies
 
 ```bash
-cd /path/to/agent-protect/sdks
+cd /path/to/agent-protect/sdks/python
 uv sync
 ```
 
 This will install the SDK and its dependencies, including the models package via path reference.
+
+### Alternative: Using the Makefile (recommended)
+
+```bash
+# From the repo root
+make sync       # installs models, server, sdk
+```
 
 ## Step 3: Verify Installation
 
@@ -68,7 +75,7 @@ uv run agent-protect-server --help
 ### Verify SDK Installation
 
 ```bash
-cd sdks
+cd sdks/python
 uv run python -c "from agent_protect import AgentProtectClient; print('✓ SDK imported successfully')"
 ```
 
@@ -85,6 +92,12 @@ Or for development with auto-reload:
 ```bash
 cd server
 uv run uvicorn agent_protect_server.main:app --reload
+```
+
+Or, using the Makefile from the repo root:
+
+```bash
+make run-server
 ```
 
 You should see:

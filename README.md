@@ -75,9 +75,35 @@ Server will be available at `http://localhost:8000`
 
 **For the SDK:**
 ```bash
-cd sdks
+cd sdks/python
 uv sync  # Install dependencies
 uv run pytest  # Run tests
+```
+
+### Using the Makefile (shortcuts)
+
+From the repository root you can use convenient targets:
+
+```bash
+# Setup all packages
+make sync           # models, server, sdk
+
+# Run server in reload mode
+make run-server
+
+# Test packages
+make test           # all
+make test-server    # server only
+make test-sdk       # sdk only
+make test-models    # models only
+
+# Lint and type-check
+make lint
+make typecheck
+
+# Build and publish
+make build          # build wheels for all members
+make publish        # publish all members
 ```
 
 ### Using the SDK

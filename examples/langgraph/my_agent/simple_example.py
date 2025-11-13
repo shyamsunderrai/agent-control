@@ -8,8 +8,8 @@ This demonstrates the new streamlined approach:
 """
 
 import asyncio
-from protect_engine import init_protect, protect, RuleViolation
 
+from protect_engine import RuleViolation, init_protect, protect
 
 # ============================================================================
 # STEP 1: Initialize at the base of your agent - ONE LINE!
@@ -24,7 +24,7 @@ init_protect()  # That's it! Auto-discovers rules.yaml and registers with server
 async def check_before_llm(content: str, ctx: dict) -> str:
     """
     This function is protected by the rules in rules.yaml.
-    
+
     Rules with step_id: "input-llm-span" will be applied automatically.
     """
     return f"Processed: {content}"
@@ -45,7 +45,7 @@ async def generate_response(query: str, ctx: dict) -> str:
 # ============================================================================
 async def main():
     """Demonstrate the simplified approach."""
-    
+
     print("=" * 80)
     print("SIMPLIFIED PROTECT ENGINE - AUTO-CONFIGURED")
     print("=" * 80)
@@ -54,7 +54,7 @@ async def main():
     print("✓ Rules auto-discovered from rules.yaml")
     print("✓ Agent registered with server")
     print()
-    
+
     # Test 1: Safe input
     print("Test 1: Safe input")
     print("-" * 80)
@@ -67,7 +67,7 @@ async def main():
     except RuleViolation as e:
         print(f"✗ Blocked: {e.message}")
     print()
-    
+
     # Test 2: Input with restricted name (from rules.yaml)
     print("Test 2: Input with restricted name")
     print("-" * 80)
@@ -80,7 +80,7 @@ async def main():
     except RuleViolation as e:
         print(f"✗ Blocked: {e.message}")
     print()
-    
+
     # Test 3: Output with PII (should be redacted)
     print("Test 3: Output with PII")
     print("-" * 80)
@@ -93,7 +93,7 @@ async def main():
     except RuleViolation as e:
         print(f"✗ Blocked: {e.message}")
     print()
-    
+
     print("=" * 80)
     print("SUMMARY")
     print("=" * 80)

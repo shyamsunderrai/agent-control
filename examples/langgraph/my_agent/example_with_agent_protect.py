@@ -54,12 +54,12 @@ async def generate_response(query: str, ctx: dict) -> str:
 # ============================================================================
 async def main():
     """Demonstrate the agent_protect.init() approach."""
-    
+
     print("=" * 80)
     print("AGENT PROTECT - SIMPLIFIED INITIALIZATION")
     print("=" * 80)
     print()
-    
+
     # Get agent info
     agent = agent_protect.get_agent()
     print(f"Agent Name: {agent.agent_name}")
@@ -67,7 +67,7 @@ async def main():
     print(f"Description: {agent.agent_description}")
     print(f"Version: {agent.agent_version}")
     print()
-    
+
     # Test 1: Safe input
     print("Test 1: Safe input")
     print("-" * 80)
@@ -80,7 +80,7 @@ async def main():
     except Exception as e:
         print(f"✗ Blocked: {e}")
     print()
-    
+
     # Test 2: Input with restricted name (from rules.yaml)
     print("Test 2: Input with restricted name")
     print("-" * 80)
@@ -93,7 +93,7 @@ async def main():
     except Exception as e:
         print(f"✗ Blocked: {e}")
     print()
-    
+
     # Test 3: Output with PII (should be redacted)
     print("Test 3: Output with PII redaction")
     print("-" * 80)
@@ -106,7 +106,7 @@ async def main():
     except Exception as e:
         print(f"✗ Blocked: {e}")
     print()
-    
+
     print("=" * 80)
     print("SUMMARY")
     print("=" * 80)

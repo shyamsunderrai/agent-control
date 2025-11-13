@@ -7,13 +7,11 @@
 #
 # To work with each component, navigate to its directory and use uv commands there.
 
-[project]
-name = "agent-protect"
-version = "0.1.0"
-description = "Agent protection system with isolated server and multi-language SDK support"
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+[tool.uv.workspace]
+members = ["models", "server", "sdks/python"]
+
+[tool.uv.sources]
+agent-protect-models = { workspace = true }
 
 [tool.ruff]
 line-length = 100

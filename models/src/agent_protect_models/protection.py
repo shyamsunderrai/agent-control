@@ -1,15 +1,15 @@
 """Protection-related models."""
 
-from typing import Dict, Optional
 
 from pydantic import Field
 
 from .base import BaseModel
 
+
 class Agent(BaseModel):
     """
     Agent metadata for registration and tracking.
-    
+
     Attributes:
         agent_id: Unique identifier for the agent (user-defined)
         agent_name: Human-readable name for the agent
@@ -21,17 +21,18 @@ class Agent(BaseModel):
     """
     agent_id: str
     agent_name: str
-    agent_description: Optional[str] = None
-    agent_created_at: Optional[str] = None
-    agent_updated_at: Optional[str] = None
-    agent_version: Optional[str] = None
-    agent_metadata: Optional[dict] = None
+    agent_description: str | None = None
+    agent_created_at: str | None = None
+    agent_updated_at: str | None = None
+    agent_version: str | None = None
+    agent_metadata: dict | None = None
 
-# 1. agent_protect.init() -> 
+# 1. agent_protect.init() ->
 # Make a request to the server to register the agent
-# InitProtectRequest(agent_name, agent_id, agent_description, agent_tools) -> InitProtectResponse *(Policy(multiple Controls) or Errors)*
-# 
-# 
+# InitProtectRequest(agent_name, agent_id, agent_description, agent_tools) ->
+#       InitProtectResponse *(Policy(multiple Controls) or Errors)*
+#
+#
 # class AgentTool(BaseModel):
 #     tool_name: str
 #     arguments: Optional[List[jsonSchema]] = None  <<-- TBD
@@ -41,14 +42,14 @@ class Agent(BaseModel):
 class ProtectionRequest(BaseModel):
     """
     Request model for protection analysis.
-    
+
     Attributes:
         content: Content to be analyzed for safety
         context: Optional contextual information about the content
     """
 
     content: str = Field(..., min_length=1, description="Content to analyze")
-    context: Optional[Dict[str, str]] = Field(
+    context: dict[str, str] | None = Field(
         default=None,
         description="Optional context information",
     )
@@ -57,10 +58,10 @@ class ProtectionRequest(BaseModel):
 class ProtectionResponse(BaseModel):
     """
     Response model from protection analysis (server-side).
-    
+
     This is what the server returns. The SDK may transform this
     into a ProtectionResult for client convenience.
-    
+
     Attributes:
         is_safe: Whether the content is considered safe
         confidence: Confidence score between 0.0 and 1.0
@@ -74,7 +75,7 @@ class ProtectionResponse(BaseModel):
         le=1.0,
         description="Confidence score (0.0 to 1.0)",
     )
-    reason: Optional[str] = Field(
+    reason: str | None = Field(
         default=None,
         description="Explanation for the decision",
     )
@@ -83,7 +84,7 @@ class ProtectionResponse(BaseModel):
 class ProtectionResult(ProtectionResponse):
     """
     Client-side result model for protection analysis.
-    
+
     Extends ProtectionResponse with additional client-side convenience methods.
     This is what SDK users interact with.
     """
@@ -91,10 +92,10 @@ class ProtectionResult(ProtectionResponse):
     def is_confident(self, threshold: float = 0.8) -> bool:
         """
         Check if the result confidence exceeds a threshold.
-        
+
         Args:
             threshold: Minimum confidence threshold (default: 0.8)
-            
+
         Returns:
             True if confidence >= threshold
         """
@@ -103,7 +104,7 @@ class ProtectionResult(ProtectionResponse):
     def __bool__(self) -> bool:
         """
         Allow boolean evaluation of result.
-        
+
         Returns:
             True if content is safe, False otherwise
         """
@@ -112,7 +113,7 @@ class ProtectionResult(ProtectionResponse):
     def __str__(self) -> str:
         """
         String representation of the result.
-        
+
         Returns:
             Human-readable description
         """
