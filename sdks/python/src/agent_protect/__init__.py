@@ -135,14 +135,18 @@ class AgentProtectClient:
 
     async def check_protection(
         self,
-        content: str,
+        agent_uuid: UUID,
+        input: str | dict[str, Any],
+        output: str | dict[str, Any],
         context: dict[str, str] | None = None
     ) -> ProtectionResult:
         """
         Check if content is safe.
 
         Args:
-            content: Content to analyze
+            agent_uuid: UUID of the agent making the request
+            input: Input content to analyze
+            output: Output content to analyze
             context: Optional context information
 
         Returns:
@@ -152,10 +156,17 @@ class AgentProtectClient:
             httpx.HTTPError: If request fails
         """
         if MODELS_AVAILABLE:
-            request = ProtectionRequest(content=content, context=context)
+            request = ProtectionRequest(
+                agent_uuid=agent_uuid, input=input, output=output, context=context
+            )
             payload = request.to_dict()
         else:
-            payload = {"content": content, "context": context}
+            payload = {
+                "agent_uuid": str(agent_uuid),
+                "input": input,
+                "output": output,
+                "context": context,
+            }
 
         assert self._client is not None
         response = await self._client.post("/api/v1/protect", json=payload)
