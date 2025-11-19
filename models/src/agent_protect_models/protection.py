@@ -79,21 +79,45 @@ class AgentTool(BaseModel):
         }
     }
 
-
 class ProtectionRequest(BaseModel):
     """
     Request model for protection analysis.
 
-    Attributes:
-        content: Content to be analyzed for safety
-        context: Optional contextual information about the content
-    """
+    Used to analyze agent inputs and outputs for safety violations,
+    policy compliance, and protection rules.
 
-    content: str = Field(..., min_length=1, description="Content to analyze")
+    Attributes:
+        agent_uuid: UUID of the agent making the request
+        input: Input content to analyze (string or structured data)
+        output: Output content to analyze (string or structured data)
+        context: Optional contextual metadata about the request
+    """
+    agent_uuid: UUID4 = Field(
+        ..., description="UUID of the agent making the protection request"
+    )
+    input: str | dict[str, Any] = Field(
+        ..., description="Input content to analyze for safety (text or structured data)"
+    )
+    output: str | dict[str, Any] = Field(
+        ..., description="Output content to analyze for safety (text or structured data)"
+    )
     context: dict[str, str] | None = Field(
         default=None,
-        description="Optional context information",
+        description="Optional contextual metadata (e.g., user_id, session_id, tool_name)",
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "agent_uuid": "550e8400-e29b-41d4-a716-446655440000",
+                    "input": "What is the customer's credit card number?",
+                    "output": "I cannot share sensitive payment information.",
+                    "context": {"tool_name": "chat", "user_id": "user123"}
+                }
+            ]
+        }
+    }
 
 
 class ProtectionResponse(BaseModel):
