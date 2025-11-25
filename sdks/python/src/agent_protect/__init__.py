@@ -22,21 +22,25 @@ Usage:
 
     # Or use the client directly for custom checks
     async with agent_protect.AgentProtectClient() as client:
-        result = await client.check_protection("some content")
+        result = await agent_protect.protection.check_protection(
+            client, agent_uuid, payload, "pre"
+        )
 """
 
 import importlib
 import os
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
-import httpx
+from . import agents, controls, policies, protection
 
-# Import from the models package
+# Import client and operations modules
+from .client import AgentProtectClient
+
+# Import models if available
 try:
     from agent_protect_models import (
         Agent,
@@ -50,7 +54,12 @@ except ImportError:
     MODELS_AVAILABLE = False
     if not TYPE_CHECKING:
         class Agent:  # runtime fallback
-            def __init__(self, agent_id: str, agent_name: str, **kwargs: object):
+            def __init__(
+                self,
+                agent_id: str | UUID,
+                agent_name: str,
+                **kwargs: object
+            ):
                 self.agent_id = agent_id
                 self.agent_name = agent_name
                 for k, v in kwargs.items():
@@ -92,229 +101,15 @@ except ImportError:
                 self.check_stage = check_stage
 
         class ProtectionResult:  # runtime fallback
-            def __init__(self, is_safe: bool, confidence: float, reason: str | None = None):
+            def __init__(
+                self,
+                is_safe: bool,
+                confidence: float,
+                reason: str | None = None
+            ):
                 self.is_safe = is_safe
                 self.confidence = confidence
                 self.reason = reason
-
-
-# ============================================================================
-# HTTP Client for Server Communication
-# ============================================================================
-
-class AgentProtectClient:
-    """
-    Async HTTP client for Agent Protect server.
-
-    This client provides methods to interact with the Agent Protect server,
-    including health checks and content protection analysis.
-
-    Usage:
-        async with AgentProtectClient() as client:
-            result = await client.check_protection("content to check")
-            if result.is_safe:
-                print("Content is safe!")
-    """
-
-    def __init__(
-        self,
-        base_url: str = "http://localhost:8000",
-        timeout: float = 30.0
-    ):
-        """
-        Initialize the client.
-
-        Args:
-            base_url: Base URL of the Agent Protect server
-            timeout: Request timeout in seconds
-        """
-        self.base_url = base_url.rstrip('/')
-        self.timeout = timeout
-        self._client: httpx.AsyncClient | None = None
-
-    async def __aenter__(self) -> "AgentProtectClient":
-        """Async context manager entry."""
-        self._client = httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=self.timeout
-        )
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Async context manager exit."""
-        if self._client:
-            await self._client.aclose()
-
-    async def health_check(self) -> dict[str, str]:
-        """
-        Check server health.
-
-        Returns:
-            Dictionary with health status
-
-        Raises:
-            httpx.HTTPError: If request fails
-        """
-        assert self._client is not None
-        response = await self._client.get("/health")
-        response.raise_for_status()
-        return cast(dict[str, str], response.json())
-
-    async def check_protection(
-        self,
-        agent_uuid: UUID,
-        payload: "ToolCall | LlmCall",
-        check_stage: Literal["pre", "post"],
-    ) -> ProtectionResult:
-        """
-        Check if agent interaction is safe.
-
-        Args:
-            agent_uuid: UUID of the agent making the request
-            payload: Either a ToolCall or LlmCall instance
-            check_stage: 'pre' for pre-execution check, 'post' for post-execution check
-
-        Returns:
-            ProtectionResult with safety analysis
-
-        Raises:
-            httpx.HTTPError: If request fails
-
-        Example:
-            # Pre-check before LLM call
-            result = await client.check_protection(
-                agent_uuid=agent.agent_id,
-                payload=LlmCall(input="User question", output=None),
-                check_stage="pre"
-            )
-
-            # Post-check after tool execution
-            result = await client.check_protection(
-                agent_uuid=agent.agent_id,
-                payload=ToolCall(
-                    tool_name="search",
-                    arguments={"query": "test"},
-                    output={"results": []}
-                ),
-                check_stage="post"
-            )
-        """
-        if MODELS_AVAILABLE:
-            request = ProtectionRequest(
-                agent_uuid=agent_uuid,
-                payload=payload,
-                check_stage=check_stage
-            )
-            request_payload = request.to_dict()
-        else:
-            # Fallback for when models aren't available
-            payload_dict = {
-                "tool_name": getattr(payload, "tool_name", None),
-                "arguments": getattr(payload, "arguments", None),
-                "input": getattr(payload, "input", None),
-                "output": getattr(payload, "output", None),
-                "context": getattr(payload, "context", None),
-            }
-            # Remove None values
-            payload_dict = {k: v for k, v in payload_dict.items() if v is not None}
-
-            request_payload = {
-                "agent_uuid": str(agent_uuid),
-                "payload": payload_dict,
-                "check_stage": check_stage,
-            }
-
-        assert self._client is not None
-        response = await self._client.post("/api/v1/protect", json=request_payload)
-        response.raise_for_status()
-
-        if MODELS_AVAILABLE:
-            return cast(ProtectionResult, ProtectionResult.from_dict(response.json()))
-        else:
-            data = response.json()
-            return ProtectionResult(**data)
-
-    async def register_agent(
-        self,
-        agent: Agent,
-        tools: list[dict[str, Any]] | None = None
-    ) -> dict[str, Any]:
-        """
-        Register an agent with the server via /initAgent endpoint.
-
-        Args:
-            agent: Agent instance to register
-            tools: Optional list of tools with their schemas
-
-        Returns:
-            InitAgentResponse with created flag and rules
-
-        Raises:
-            httpx.HTTPError: If request fails
-        """
-        if tools is None:
-            tools = []
-
-        if MODELS_AVAILABLE:
-            agent_dict = agent.to_dict()
-            # Ensure UUID is converted to string for JSON serialization
-            if isinstance(agent_dict.get('agent_id'), UUID):
-                agent_dict['agent_id'] = str(agent_dict['agent_id'])
-            payload = {
-                "agent": agent_dict,
-                "tools": tools
-            }
-        else:
-            payload = {
-                "agent": {
-                    "agent_id": str(agent.agent_id),
-                    "agent_name": agent.agent_name,
-                    "agent_description": getattr(agent, 'agent_description', None),
-                    "agent_version": getattr(agent, 'agent_version', None),
-                    "agent_metadata": getattr(agent, 'agent_metadata', None),
-                },
-                "tools": tools
-            }
-
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use 'async with' context manager.")
-        assert self._client is not None  # Help mypy understand
-        response = await self._client.post("/api/v1/agents/initAgent", json=payload)
-        response.raise_for_status()
-        return cast(dict[str, Any], response.json())
-
-    async def get_agent(self, agent_id: str) -> dict[str, Any]:
-        """
-        Get agent details by ID from the server.
-
-        Args:
-            agent_id: UUID or string identifier of the agent
-
-        Returns:
-            Dictionary containing:
-                - agent: Agent metadata
-                - tools: List of tools registered with the agent
-
-        Raises:
-            httpx.HTTPError: If request fails or agent not found (404)
-
-        Example:
-            async with AgentProtectClient() as client:
-                agent_data = await client.get_agent("550e8400-e29b-41d4-a716-446655440000")
-                print(f"Agent: {agent_data['agent']['agent_name']}")
-                print(f"Tools: {len(agent_data['tools'])}")
-        """
-        if self._client is None:
-            raise RuntimeError("Client not initialized. Use 'async with' context manager.")
-        assert self._client is not None  # Help mypy understand
-        response = await self._client.get(f"/api/v1/agents/{agent_id}")
-        response.raise_for_status()
-        return cast(dict[str, Any], response.json())
 
 
 # ============================================================================
@@ -327,9 +122,12 @@ _protect_engine = None
 _client: AgentProtectClient | None = None
 _server_rules: list | None = None
 
-
 F = TypeVar("F", bound=Callable[..., Any])
 
+
+# ============================================================================
+# Public API Functions
+# ============================================================================
 
 def init(
     agent_name: str,
@@ -403,16 +201,17 @@ def init(
     try:
         _agent_uuid = UUID(agent_id)
     except ValueError:
-        # If not a valid UUID, generate one from the string deterministically
-        import hashlib
-        _agent_uuid = UUID(hashlib.sha1(agent_id.encode()).hexdigest()[:32])
-        print(f"ℹ️  Generated UUID {_agent_uuid} from agent_id '{agent_id}'")
+        # If not a valid UUID, generate UUID5 (namespace-based, deterministic)
+        # Using DNS namespace for consistency
+        import uuid
+        _agent_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, agent_id)
+        print(f"ℹ️  Generated UUID5 {_agent_uuid} from agent_id '{agent_id}'")
 
     _current_agent = Agent(
         agent_id=_agent_uuid,
         agent_name=agent_name,
         agent_description=agent_description,
-        agent_created_at=datetime.utcnow().isoformat(),
+        agent_created_at=datetime.now(UTC).isoformat(),
         agent_updated_at=None,
         agent_version=agent_version,
         agent_metadata=kwargs
@@ -439,7 +238,11 @@ def init(
 
                 # Register agent with tools
                 try:
-                    response = await client.register_agent(_current_agent, tools=tools or [])
+                    response = await agents.register_agent(
+                        client,
+                        _current_agent,
+                        tools=tools or []
+                    )
                     created = response.get('created', False)
                     rules: list[dict[str, Any]] = response.get('rules', [])
 
@@ -506,12 +309,12 @@ async def get_agent(agent_id: str, server_url: str | None = None) -> dict[str, A
 
         # Or using the client directly
         async with agent_protect.AgentProtectClient() as client:
-            agent_data = await client.get_agent("bot-123")
+            agent_data = await agent_protect.agents.get_agent(client, "bot-123")
     """
     _final_server_url = server_url or os.getenv('AGENT_PROTECT_URL') or 'http://localhost:8000'
 
     async with AgentProtectClient(base_url=_final_server_url) as client:
-        return await client.get_agent(agent_id)
+        return await agents.get_agent(client, agent_id)
 
 
 def current_agent() -> Agent | None:
@@ -560,6 +363,7 @@ def protect(step_id: str, **data_sources: str) -> Callable[[F], F]:
 
         module = importlib.import_module("protect_engine")
         # Cast the dynamically imported decorator factory to the expected type
+        from typing import cast
         return cast(Callable[[F], F], getattr(module, "protect")(step_id, **data_sources))
     except Exception as e:
         print(f"⚠️  Could not load protect decorator: {e}")
@@ -567,6 +371,10 @@ def protect(step_id: str, **data_sources: str) -> Callable[[F], F]:
             return func
         return decorator
 
+
+# ============================================================================
+# Exports
+# ============================================================================
 
 __all__ = [
     # Initialization
@@ -582,15 +390,18 @@ __all__ = [
     # Client
     "AgentProtectClient",
 
+    # Operation modules
+    "agents",
+    "policies",
+    "controls",
+    "protection",
+
     # Models (if available)
     "Agent",
     "LlmCall",
     "ToolCall",
     "ProtectionRequest",
     "ProtectionResult",
-    "ProtectionResponse",
-    "HealthResponse",
 ]
 
 __version__ = "0.1.0"
-

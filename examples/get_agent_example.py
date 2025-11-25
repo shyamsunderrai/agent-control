@@ -15,9 +15,9 @@ async def example_with_client():
 
     async with agent_protect.AgentProtectClient() as client:
         try:
-            # Get agent by ID
+            # Get agent by ID using the agents module
             agent_id = "550e8400-e29b-41d4-a716-446655440000"
-            agent_data = await client.get_agent(agent_id)
+            agent_data = await agent_protect.agents.get_agent(client, agent_id)
             
             print(f"✓ Found agent!")
             print(f"  Name: {agent_data['agent']['agent_name']}")

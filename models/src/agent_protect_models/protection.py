@@ -1,7 +1,8 @@
 """Protection-related models."""
 from typing import Any, Literal
+from uuid import UUID
 
-from pydantic import UUID4, Field
+from pydantic import Field
 
 from .base import BaseModel
 from .rules import RuleMatch
@@ -14,7 +15,7 @@ class Agent(BaseModel):
     An agent represents an AI system that can be protected and monitored.
     Each agent has a unique ID and can have multiple tools registered with it.
     """
-    agent_id: UUID4 = Field(
+    agent_id: UUID = Field(
         ..., description="Unique identifier for the agent (UUID format)"
     )
     agent_name: str = Field(
@@ -118,7 +119,7 @@ class ProtectionRequest(BaseModel):
         payload: Either a ToolCall or LlmCall
         check_stage: 'pre' (before execution) or 'post' (after execution)
     """
-    agent_uuid: UUID4 = Field(
+    agent_uuid: UUID = Field(
         ..., description="UUID of the agent making the protection request"
     )
     payload: ToolCall | LlmCall = Field(

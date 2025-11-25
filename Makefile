@@ -56,7 +56,7 @@ sync:
 # Test
 # ---------------------------
 
-test: server-test engine-test
+test: server-test engine-test sdk-test
 
 # Run tests, lint, and typecheck
 check: test lint typecheck
@@ -126,6 +126,9 @@ prepush:
 
 engine-%:
 	$(MAKE) -C $(ENGINE_DIR) $(patsubst engine-%,%,$@)
+
+sdk-%:
+	$(MAKE) -C $(SDK_DIR) $(patsubst sdk-%,%,$@)
 
 .PHONY: server-%
 server-%:
