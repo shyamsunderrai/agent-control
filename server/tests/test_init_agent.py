@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
-from agent_protect_server.config import db_config
-from agent_protect_server.models import Agent
+from agent_control_server.config import db_config
+from agent_control_server.models import Agent
 
 # Create sync engine for raw database queries in tests
 engine = create_engine(db_config.get_url(), echo=False)
@@ -54,9 +54,9 @@ def test_init_agent_creates_and_gets_agent(client: TestClient) -> None:
     resp = client.post("/api/v1/agents/initAgent", json=payload)
     assert resp.status_code == 200
     body = resp.json()
-    # Then: the agent is created and rules are empty
+    # Then: the agent is created and controls are empty
     assert body["created"] is True
-    assert body["rules"] == []
+    assert body["controls"] == []
 
     agent_id = payload["agent"]["agent_id"]
     # When: retrieving the agent by id
@@ -172,7 +172,7 @@ def test_init_agent_logs_warning_on_bad_existing_data(client: TestClient, caplog
         session.commit()
 
     # When: re-initializing with the same payload
-    logger_name = "agent_protect_server.endpoints.agent"
+    logger_name = "agent_control_server.endpoints.agents"
     with caplog.at_level(logging.WARNING, logger=logger_name):
         r2 = client.post("/api/v1/agents/initAgent", json=payload)
         assert r2.status_code == 200
@@ -286,65 +286,65 @@ def test_set_policy_not_found_returns_404(client: TestClient) -> None:
     assert resp.status_code == 404
 
 
-def test_list_agent_rules_no_policy_returns_empty(client: TestClient) -> None:
+def test_list_agent_controls_no_policy_returns_empty(client: TestClient) -> None:
     # Given: an agent without a policy
     payload = make_agent_payload()
     client.post("/api/v1/agents/initAgent", json=payload)
     agent_id = payload["agent"]["agent_id"]
 
-    # When: listing rules
-    r = client.get(f"/api/v1/agents/{agent_id}/rules")
+    # When: listing controls
+    r = client.get(f"/api/v1/agents/{agent_id}/controls")
     # Then: empty list
     assert r.status_code == 200
-    assert r.json()["rules"] == []
+    assert r.json()["controls"] == []
 
 
-def test_list_agent_rules_with_policy(client: TestClient) -> None:
-    # Given: an agent with a policy containing one control and one rule
+def test_list_agent_controls_with_policy(client: TestClient) -> None:
+    # Given: an agent with a policy containing one control set and one control
     payload = make_agent_payload()
     client.post("/api/v1/agents/initAgent", json=payload)
     agent_id = payload["agent"]["agent_id"]
 
-    # Create policy, control, rule, and wire them
+    # Create policy, control set, control, and wire them
     pol_name = f"pol-{uuid.uuid4()}"
     pol = client.put("/api/v1/policies", json={"name": pol_name})
     policy_id = pol.json()["policy_id"]
 
-    ctl_name = f"ctl-{uuid.uuid4()}"
+    cs_name = f"cs-{uuid.uuid4()}"
+    cs = client.put("/api/v1/control-sets", json={"name": cs_name})
+    control_set_id = cs.json()["control_set_id"]
+
+    ctl_name = f"control-{uuid.uuid4()}"
     ctl = client.put("/api/v1/controls", json={"name": ctl_name})
     control_id = ctl.json()["control_id"]
 
-    rl_name = f"rule-{uuid.uuid4()}"
-    rl = client.put("/api/v1/rules", json={"name": rl_name})
-    rule_id = rl.json()["rule_id"]
+    # Set control data
+    from .utils import VALID_CONTROL_PAYLOAD
+    data_payload = VALID_CONTROL_PAYLOAD
+    client.put(f"/api/v1/controls/{control_id}/data", json={"data": data_payload})
 
-    # Set rule data
-    from .utils import VALID_RULE_PAYLOAD
-    data_payload = VALID_RULE_PAYLOAD
-    client.put(f"/api/v1/rules/{rule_id}/data", json={"data": data_payload})
-
-    # Associate rule -> control and control -> policy; assign policy to agent
-    client.post(f"/api/v1/controls/{control_id}/rules/{rule_id}")
-    client.post(f"/api/v1/policies/{policy_id}/controls/{control_id}")
+    # Associate control -> control set and control set -> policy; assign policy to agent
+    client.post(f"/api/v1/control-sets/{control_set_id}/controls/{control_id}")
+    client.post(f"/api/v1/policies/{policy_id}/control_sets/{control_set_id}")
     client.post(f"/api/v1/agents/{agent_id}/policy/{policy_id}")
 
-    # When: listing rules
-    r = client.get(f"/api/v1/agents/{agent_id}/rules")
-    # Then: contains our rule serialized via API model
+    # When: listing controls
+    r = client.get(f"/api/v1/agents/{agent_id}/controls")
+    # Then: contains our control serialized via API model
     assert r.status_code == 200
     body = r.json()
-    assert isinstance(body.get("rules"), list)
-    # Verify rule data is present and matches description
+    assert isinstance(body.get("controls"), list)
+    # Verify control data is present and matches description
     assert any(
-        item.get("rule", {}).get("description") == data_payload["description"] 
-        for item in body["rules"]
+        item.get("control", {}).get("description") == data_payload["description"] 
+        for item in body["controls"]
     )
 
 
-def test_list_agent_rules_agent_not_found_404(client: TestClient) -> None:
+def test_list_agent_controls_agent_not_found_404(client: TestClient) -> None:
     # Given: random agent id
     missing = str(uuid.uuid4())
     # When: requesting
-    r = client.get(f"/api/v1/agents/{missing}/rules")
+    r = client.get(f"/api/v1/agents/{missing}/controls")
     # Then: 404
     assert r.status_code == 404

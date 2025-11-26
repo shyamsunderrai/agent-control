@@ -1,9 +1,16 @@
-"""Tests for rule evaluators."""
-import pytest
-from agent_protect_models import RuleEvaluator
-from agent_protect_models.rules import RegexConfig, ListConfig, RegexRuleEvaluator, ListRuleEvaluator, CustomRuleEvaluator
 
-from agent_protect_engine.evaluators import RegexEvaluator, ListEvaluator, get_evaluator
+"""Tests for control evaluators."""
+import pytest
+from agent_control_models import ControlEvaluator
+from agent_control_models.controls import (
+    RegexConfig,
+    ListConfig,
+    RegexControlEvaluator,
+    ListControlEvaluator,
+    CustomControlEvaluator,
+)
+
+from agent_control_engine.evaluators import RegexControlEvaluator as RegexEvaluator, get_evaluator
 
 
 class TestRegexEvaluator:
@@ -76,8 +83,8 @@ class TestRegexEvaluator:
         assert result.matched is True
 
     def test_get_evaluator_factory(self):
-        # Given: a RuleEvaluator configuration for regex type
-        config = RegexRuleEvaluator(
+        # Given: a ControlEvaluator configuration for regex type
+        config = RegexControlEvaluator(
             type="regex",
             config=RegexConfig(pattern="abc")
         )
@@ -90,9 +97,9 @@ class TestRegexEvaluator:
         assert evaluator.pattern == "abc"
 
     def test_get_evaluator_unknown_type(self):
-        # Given: a RuleEvaluator configuration for an unsupported type (Custom)
-        # Note: CustomRuleEvaluator expects a dict config
-        config = CustomRuleEvaluator(
+        # Given: a ControlEvaluator configuration for an unsupported type (Custom)
+        # Note: CustomControlEvaluator expects a dict config
+        config = CustomControlEvaluator(
             type="custom",
             config={}
         )
@@ -104,7 +111,7 @@ class TestRegexEvaluator:
 
     def test_list_evaluator_any_match(self):
         # Given: a list evaluator (DenyList equivalent: block if ANY match found)
-        config = ListRuleEvaluator(
+        config = ListControlEvaluator(
             type="list",
             config=ListConfig(
                 values=["bad", "evil"],
@@ -124,7 +131,7 @@ class TestRegexEvaluator:
 
     def test_list_evaluator_any_no_match(self):
         # Given: a list evaluator (AllowList equivalent)
-        config = ListRuleEvaluator(
+        config = ListControlEvaluator(
             type="list",
             config=ListConfig(
                 values=["safe", "ok"],
@@ -134,16 +141,16 @@ class TestRegexEvaluator:
         )
         evaluator = get_evaluator(config)
 
-        # When: evaluating safe values (IN list) -> Rule does NOT trigger (safe)
+        # When: evaluating safe values (IN list) -> Control does NOT trigger (safe)
         assert evaluator.evaluate("safe").matched is False
         assert evaluator.evaluate("ok").matched is False
         
-        # When: evaluating unsafe values (NOT in list) -> Rule triggers (match)
+        # When: evaluating unsafe values (NOT in list) -> Control triggers (match)
         assert evaluator.evaluate("dangerous").matched is True
 
     def test_list_evaluator_all_match(self):
         # Given: a list evaluator requiring ALL items to match
-        config = ListRuleEvaluator(
+        config = ListControlEvaluator(
             type="list",
             config=ListConfig(
                 values=["valid1", "valid2"],
@@ -161,7 +168,7 @@ class TestRegexEvaluator:
         assert evaluator.evaluate([]).matched is False
 
     def test_list_evaluator_case_insensitive(self):
-        config = ListRuleEvaluator(
+        config = ListControlEvaluator(
             type="list",
             config=ListConfig(
                 values=["MixedCase"],

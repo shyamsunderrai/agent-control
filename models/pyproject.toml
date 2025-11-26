@@ -1,13 +1,13 @@
 [project]
-name = "agent-protect-models"
+name = "agent-control-models"
 version = "0.1.0"
-description = "Shared data models for Agent Protect server and SDK"
+description = "Shared data models for Agent Control server and SDK"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.12.4",
 ]
 authors = [
-    {name = "Agent Protect Team"}
+    {name = "Agent Control Team"}
 ]
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -24,5 +24,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agent_protect_models"]
-
+packages = ["src/agent_control_models"]

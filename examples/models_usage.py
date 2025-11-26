@@ -1,10 +1,10 @@
 """Examples of working with Agent Protect models directly."""
 
-from agent_protect_models import (
+from agent_control_models import (
     HealthResponse,
-    ProtectionRequest,
-    ProtectionResponse,
-    ProtectionResult,
+    EvaluationRequest,
+    EvaluationResponse,
+    EvaluationResult,
 )
 
 
@@ -14,7 +14,7 @@ def example_basic_models() -> None:
     print("-" * 60)
 
     # Create a request
-    request = ProtectionRequest(
+    request = EvaluationRequest(
         content="Test content",
         context={"source": "example", "user": "demo"},
     )
@@ -23,7 +23,7 @@ def example_basic_models() -> None:
     print(f"Context: {request.context}\n")
 
     # Create a response
-    response = ProtectionResponse(
+    response = EvaluationResponse(
         is_safe=True,
         confidence=0.95,
         reason="All checks passed",
@@ -39,14 +39,14 @@ def example_json_serialization() -> None:
     print("-" * 60)
 
     # Create a model
-    request = ProtectionRequest(content="Test", context={"key": "value"})
+    request = EvaluationRequest(content="Test", context={"key": "value"})
 
     # Serialize to JSON
     json_str = request.to_json()
     print(f"JSON string: {json_str}\n")
 
     # Deserialize from JSON
-    request2 = ProtectionRequest.from_json(json_str)
+    request2 = EvaluationRequest.from_json(json_str)
     print(f"Deserialized: {request2}")
     print(f"Are they equal? {request == request2}\n")
 
@@ -63,7 +63,7 @@ def example_dict_conversion() -> None:
         "reason": "Content appears safe",
     }
 
-    response = ProtectionResponse.from_dict(data)
+    response = EvaluationResponse.from_dict(data)
     print(f"From dict: {response}\n")
 
     # Convert to dict
@@ -72,11 +72,11 @@ def example_dict_conversion() -> None:
 
 
 def example_protection_result() -> None:
-    """Demonstrate ProtectionResult with extra methods."""
-    print("4. ProtectionResult (Client-side)")
+    """Demonstrate EvaluationResult with extra methods."""
+    print("4. EvaluationResult (Client-side)")
     print("-" * 60)
 
-    result = ProtectionResult(
+    result = EvaluationResult(
         is_safe=True,
         confidence=0.88,
         reason="Moderate confidence",
@@ -102,21 +102,21 @@ def example_validation() -> None:
 
     # Valid confidence (0.0 to 1.0)
     try:
-        response = ProtectionResponse(is_safe=True, confidence=0.95)
+        response = EvaluationResponse(is_safe=True, confidence=0.95)
         print(f"✓ Valid: {response}\n")
     except Exception as e:
         print(f"✗ Error: {e}\n")
 
     # Invalid confidence (> 1.0)
     try:
-        response = ProtectionResponse(is_safe=True, confidence=1.5)
+        response = EvaluationResponse(is_safe=True, confidence=1.5)
         print(f"✓ Valid: {response}\n")
     except Exception as e:
         print(f"✗ Validation error (expected): {type(e).__name__}\n")
 
     # Missing required field
     try:
-        request = ProtectionRequest()  # type: ignore
+        request = EvaluationRequest()  # type: ignore
         print(f"✓ Valid: {request}\n")
     except Exception as e:
         print(f"✗ Validation error (expected): {type(e).__name__}\n")
@@ -136,7 +136,7 @@ def example_forward_compatibility() -> None:
         "another_new_field": {"nested": "data"},  # This too
     }
 
-    response = ProtectionResponse.from_dict(data_with_future_fields)
+    response = EvaluationResponse.from_dict(data_with_future_fields)
     print(f"Parsed response: {response}")
     print("✓ Extra fields were ignored (forward compatible)\n")
 

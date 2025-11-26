@@ -57,7 +57,7 @@ class TestSafetyCheckNode:
 
     @pytest.mark.asyncio
     @patch("agent.AGENT_PROTECT_AVAILABLE", True)
-    @patch("agent.AgentProtectClient")
+    @patch("agent.AgentControlClient")
     async def test_safety_check_safe_content(self, mock_client_class):
         """Test safety check with safe content."""
         # Mock the client and result
@@ -66,7 +66,7 @@ class TestSafetyCheckNode:
         mock_result.reason = "Content is safe"
 
         mock_client = AsyncMock()
-        mock_client.__aenter__.return_value.check_protection.return_value = mock_result
+        mock_client.__aenter__.return_value.check_evaluation.return_value = mock_result
         mock_client_class.return_value = mock_client
 
         state = {
@@ -81,7 +81,7 @@ class TestSafetyCheckNode:
 
     @pytest.mark.asyncio
     @patch("agent.AGENT_PROTECT_AVAILABLE", True)
-    @patch("agent.AgentProtectClient")
+    @patch("agent.AgentControlClient")
     async def test_safety_check_unsafe_content(self, mock_client_class):
         """Test safety check with unsafe content."""
         # Mock the client and result
@@ -90,7 +90,7 @@ class TestSafetyCheckNode:
         mock_result.reason = "Content contains inappropriate language"
 
         mock_client = AsyncMock()
-        mock_client.__aenter__.return_value.check_protection.return_value = mock_result
+        mock_client.__aenter__.return_value.check_evaluation.return_value = mock_result
         mock_client_class.return_value = mock_client
 
         state = {
@@ -209,7 +209,7 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @patch("agent.AGENT_PROTECT_AVAILABLE", True)
-    @patch("agent.AgentProtectClient")
+    @patch("agent.AgentControlClient")
     @patch("agent.ChatOpenAI")
     async def test_full_workflow_safe_input(self, mock_chat_class, mock_client_class):
         """Test the complete workflow with safe input."""
@@ -219,7 +219,7 @@ class TestIntegration:
         mock_result.reason = "Content is safe"
 
         mock_client = AsyncMock()
-        mock_client.__aenter__.return_value.check_protection.return_value = mock_result
+        mock_client.__aenter__.return_value.check_evaluation.return_value = mock_result
         mock_client_class.return_value = mock_client
 
         # Mock LLM
@@ -234,7 +234,7 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     @patch("agent.AGENT_PROTECT_AVAILABLE", True)
-    @patch("agent.AgentProtectClient")
+    @patch("agent.AgentControlClient")
     @patch("agent.ChatOpenAI")
     async def test_full_workflow_unsafe_input(self, mock_chat_class, mock_client_class):
         """Test the complete workflow with unsafe input."""
@@ -244,7 +244,7 @@ class TestIntegration:
         mock_result.reason = "Inappropriate content detected"
 
         mock_client = AsyncMock()
-        mock_client.__aenter__.return_value.check_protection.return_value = mock_result
+        mock_client.__aenter__.return_value.check_evaluation.return_value = mock_result
         mock_client_class.return_value = mock_client
 
         # Mock LLM (should not be called)

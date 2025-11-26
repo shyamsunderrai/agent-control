@@ -7,8 +7,8 @@ UP ?= head
 DOWN ?= -1
 SHOW ?= head
 STAMP ?= head
-TEST_DB ?= agent_protect_test
 
+TEST_DB ?= agent_control_test
 .PHONY: help run start-dependencies test alembic-migrate alembic-revision alembic-upgrade alembic-downgrade alembic-current alembic-history alembic-heads alembic-show alembic-stamp
 
 help:
@@ -53,7 +53,7 @@ start-dependencies:
 	docker compose up -d
 
 test:
-	DB_DATABASE=$(TEST_DB) uv run --package agent-protect-server pytest -q
+	DB_DATABASE=$(TEST_DB) uv run --package agent-control-server pytest -q
 
 run: start-dependencies
-	uv run --package agent-protect-server uvicorn agent_protect_server.main:app --reload
+	uv run --package agent-control-server uvicorn agent_control_server.main:app --reload

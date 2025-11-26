@@ -128,7 +128,7 @@ cd models
 uv sync
 
 # Verify
-uv run python -c "from agent_protect_models import Agent; print('OK')"
+uv run python -c "from agent_control_models import Agent; print('OK')"
 
 # Test
 uv run pytest
@@ -284,7 +284,7 @@ uv run uvicorn agent_protect_server.main:app --reload
 
 # 3. Make changes to models
 cd ../models
-vim src/agent_protect_models/protection.py
+vim src/agent_control_models/protection.py
 # Changes are immediately available (editable install)
 
 # 4. Test changes

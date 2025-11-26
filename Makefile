@@ -1,10 +1,10 @@
 .PHONY: help sync test test-models test-sdk lint lint-fix typecheck check build build-models build-server build-sdk publish publish-models publish-server publish-sdk hooks-install hooks-uninstall prepush
 
 # Workspace package names
-PACK_MODELS := agent-protect-models
-PACK_SERVER := agent-protect-server
-PACK_SDK    := agent-protect
-PACK_ENGINE := agent-protect-engine
+PACK_MODELS := agent-control-models
+PACK_SERVER := agent-control-server
+PACK_SDK    := agent-control
+PACK_ENGINE := agent-control-engine
 
 # Directories
 MODELS_DIR := models

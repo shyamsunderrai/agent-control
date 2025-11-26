@@ -4,8 +4,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 
-VALID_RULE_PAYLOAD = {
-    "description": "Valid Rule",
+VALID_CONTROL_PAYLOAD = {
+    "description": "Valid Control",
     "enabled": True,
     "applies_to": "llm_call",
     "check_stage": "pre",
@@ -14,33 +14,33 @@ VALID_RULE_PAYLOAD = {
     "action": {"decision": "deny"}
 }
 
-def create_and_assign_policy(client: TestClient, rule_config: dict[str, Any] | None = None, agent_name: str = "MyTestAgent") -> tuple[uuid.UUID, str]:
-    """Helper to setup Agent -> Policy -> Control -> Rule hierarchy.
+def create_and_assign_policy(client: TestClient, control_config: dict[str, Any] | None = None, agent_name: str = "MyTestAgent") -> tuple[uuid.UUID, str]:
+    """Helper to setup Agent -> Policy -> ControlSet -> Control hierarchy.
     
     Args:
-        rule_config: Optional rule configuration. If None, uses VALID_RULE_PAYLOAD.
+        control_config: Optional control configuration. If None, uses VALID_CONTROL_PAYLOAD.
     
     Returns:
-        tuple: (agent_uuid, rule_name)
+        tuple: (agent_uuid, control_name)
     """
-    if rule_config is None:
-        rule_config = VALID_RULE_PAYLOAD.copy()
-    rule_name = f"rule-{uuid.uuid4()}"
-    resp = client.put("/api/v1/rules", json={"name": rule_name})
-    assert resp.status_code == 200
-    rule_id = resp.json()["rule_id"]
-
-    # 1.1 Configure Rule
-    resp = client.put(f"/api/v1/rules/{rule_id}/data", json={"data": rule_config})
-    assert resp.status_code == 200
-
-    # 2. Create Control
+    if control_config is None:
+        control_config = VALID_CONTROL_PAYLOAD.copy()
     control_name = f"control-{uuid.uuid4()}"
     resp = client.put("/api/v1/controls", json={"name": control_name})
     assert resp.status_code == 200
     control_id = resp.json()["control_id"]
+
+    # 1.1 Configure Control
+    resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": control_config})
+    assert resp.status_code == 200
+
+    # 2. Create Control Set
+    control_set_name = f"cs-{uuid.uuid4()}"
+    resp = client.put("/api/v1/control-sets", json={"name": control_set_name})
+    assert resp.status_code == 200
+    control_set_id = resp.json()["control_set_id"]
     
-    client.post(f"/api/v1/controls/{control_id}/rules/{rule_id}")
+    client.post(f"/api/v1/control-sets/{control_set_id}/controls/{control_id}")
 
     # 3. Create Policy
     policy_name = f"policy-{uuid.uuid4()}"
@@ -48,7 +48,7 @@ def create_and_assign_policy(client: TestClient, rule_config: dict[str, Any] | N
     assert resp.status_code == 200
     policy_id = resp.json()["policy_id"]
     
-    client.post(f"/api/v1/policies/{policy_id}/controls/{control_id}")
+    client.post(f"/api/v1/policies/{policy_id}/control_sets/{control_set_id}")
 
     # 4. Register Agent
     agent_uuid = uuid.uuid4()
@@ -64,4 +64,4 @@ def create_and_assign_policy(client: TestClient, rule_config: dict[str, Any] | N
     # 5. Assign Policy
     client.post(f"/api/v1/agents/{str(agent_uuid)}/policy/{policy_id}")
     
-    return agent_uuid, rule_name
+    return agent_uuid, control_name

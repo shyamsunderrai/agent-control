@@ -6,9 +6,9 @@ from sqlalchemy import create_engine, pool
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from agent_protect_server.config import db_config  # noqa: E402
-from agent_protect_server.db import Base  # noqa: E402
-import agent_protect_server.models  # noqa: E402,F401
+from agent_control_server.config import db_config  # noqa: E402
+from agent_control_server.db import Base  # noqa: E402
+import agent_control_server.models  # noqa: E402,F401
 
 config = context.config
 

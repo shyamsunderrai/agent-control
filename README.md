@@ -160,7 +160,7 @@ The SDK provides the `check_protection` method, which now accepts typed payloads
 
 ```python
 from agent_protect import AgentProtectClient
-from agent_protect_models import LlmCall, ToolCall
+from agent_control_models import LlmCall, ToolCall
 
 async with AgentProtectClient() as client:
     

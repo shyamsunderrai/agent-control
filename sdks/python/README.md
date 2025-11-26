@@ -5,7 +5,7 @@ Unified Python SDK for Agent Protect - providing agent protection, monitoring, a
 ## Installation
 
 ```bash
-pip install agent-protect
+pip install agent-control
 ```
 
 ## Quick Start
@@ -230,7 +230,7 @@ async with AgentProtectClient(base_url="http://server") as client:
 
 ### Models
 
-If `agent-protect-models` is installed, these classes are available:
+If `agent-control-models` is installed, these classes are available:
 
 - `Agent` - Agent metadata
 - `ProtectionRequest` - Protection request model
@@ -264,11 +264,11 @@ See the [Rules Guide](../../examples/langgraph/my_agent/RULES_GUIDE.md) for comp
 
 ## Package Name
 
-This package is named `agent-protect` (with hyphen in PyPI) but imported as `agent_protect` (with underscore in Python):
+This package is named `agent-control` (with hyphen in PyPI) but imported as `agent_protect` (with underscore in Python):
 
 ```bash
 # Install (uses hyphen)
-pip install agent-protect
+pip install agent-control
 
 # Import (uses underscore)
 import agent_protect

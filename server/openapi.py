@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from agent_protect_server.main import app
+from agent_control_server.main import app
 
 
 def generate_openapi_spec(output_path: str = "openapi.json") -> None:

@@ -7,13 +7,13 @@ These tests verify policy management workflows:
 3. Listing policy controls
 """
 
-import agent_protect
+import agent_control
 import pytest
 
 
 @pytest.mark.asyncio
 async def test_policy_creation_workflow(
-    client: agent_protect.AgentProtectClient,
+    client: agent_control.AgentControlClient,
     unique_name: str
 ) -> None:
     """
@@ -27,7 +27,7 @@ async def test_policy_creation_workflow(
     policy_name = f"test-policy-{unique_name}"
 
     # Create policy
-    result = await agent_protect.policies.create_policy(client, policy_name)
+    result = await agent_control.policies.create_policy(client, policy_name)
 
     # Verify response
     assert "policy_id" in result
@@ -38,7 +38,7 @@ async def test_policy_creation_workflow(
 
     # Try to create duplicate (should fail with 409)
     with pytest.raises(Exception) as exc_info:
-        await agent_protect.policies.create_policy(client, policy_name)
+        await agent_control.policies.create_policy(client, policy_name)
 
     # Verify it's a 409 conflict error
     assert "409" in str(exc_info.value)
@@ -47,88 +47,100 @@ async def test_policy_creation_workflow(
 
 @pytest.mark.asyncio
 async def test_control_association_workflow(
-    client: agent_protect.AgentProtectClient,
+    client: agent_control.AgentControlClient,
     test_policy: dict,
     test_control: dict
 ) -> None:
     """
-    Test adding and removing controls from policies.
+    Test adding and removing control sets from policies.
 
     Verifies:
-    - Control can be added to policy
+    - Control set can be added to policy
     - Operation is idempotent (adding twice works)
-    - Control can be removed from policy
+    - Control set can be removed from policy
     - Removal is idempotent
     """
     policy_id = test_policy["policy_id"]
     control_id = test_control["control_id"]
 
-    # Add control to policy
-    result = await agent_protect.policies.add_control_to_policy(
+    # 1. Create a control set and add control to it (prerequisite)
+    import uuid
+    cs_name = f"test-cs-{uuid.uuid4()}"
+    cs_result = await agent_control.control_sets.create_control_set(client, cs_name)
+    control_set_id = cs_result["control_set_id"]
+
+    await agent_control.control_sets.add_control_to_control_set(
         client,
-        policy_id,
+        control_set_id,
         control_id
     )
 
-    assert result["success"] is True
-    print(f"✓ Control {control_id} added to policy {policy_id}")
-
-    # Add again (should be idempotent)
-    result = await agent_protect.policies.add_control_to_policy(
+    # 2. Add control set to policy
+    result = await agent_control.policies.add_control_set_to_policy(
         client,
         policy_id,
-        control_id
+        control_set_id
+    )
+
+    assert result["success"] is True
+    print(f"✓ Control set {control_set_id} added to policy {policy_id}")
+
+    # Add again (should be idempotent)
+    result = await agent_control.policies.add_control_set_to_policy(
+        client,
+        policy_id,
+        control_set_id
     )
 
     assert result["success"] is True
     print("✓ Idempotent add verified")
 
-    # List controls to verify
-    controls_result = await agent_protect.policies.list_policy_controls(
+    # List control sets to verify
+    cs_result = await agent_control.policies.list_policy_control_sets(
         client,
         policy_id
     )
 
-    assert control_id in controls_result["control_ids"]
-    print("✓ Control appears in policy controls list")
+    assert control_set_id in cs_result["control_set_ids"]
+    print("✓ Control set appears in policy control sets list")
 
-    # Remove control from policy
-    result = await agent_protect.policies.remove_control_from_policy(
+    # Remove control set from policy
+    result = await agent_control.policies.remove_control_set_from_policy(
         client,
         policy_id,
-        control_id
+        control_set_id
     )
 
     assert result["success"] is True
-    print("✓ Control removed from policy")
+    print("✓ Control set removed from policy")
 
     # Remove again (should be idempotent)
-    result = await agent_protect.policies.remove_control_from_policy(
+    result = await agent_control.policies.remove_control_set_from_policy(
         client,
         policy_id,
-        control_id
+        control_set_id
     )
 
     assert result["success"] is True
     print("✓ Idempotent remove verified")
 
-    # Verify control is no longer in list
-    controls_result = await agent_protect.policies.list_policy_controls(
+    # Verify control set is no longer in list
+    cs_result = await agent_control.policies.list_policy_control_sets(
         client,
         policy_id
     )
 
-    assert control_id not in controls_result["control_ids"]
-    print("✓ Control no longer in policy controls list")
+    assert control_set_id not in cs_result["control_set_ids"]
+    print("✓ Control set no longer in policy control sets list")
 
 
 @pytest.mark.asyncio
-async def test_list_policy_controls_workflow(
-    client: agent_protect.AgentProtectClient,
+async def test_list_policy_control_sets_workflow(
+    client: agent_control.AgentControlClient,
     test_policy: dict
 ) -> None:
     """
-    Test listing policy controls.
+    Test listing policy control sets.
 
     Verifies:
     - Empty policy returns empty list
@@ -136,19 +148,19 @@ async def test_list_policy_controls_workflow(
     """
     policy_id = test_policy["policy_id"]
 
-    # List controls (should be empty for new policy)
-    result = await agent_protect.policies.list_policy_controls(client, policy_id)
+    # List control sets (should be empty for new policy)
+    result = await agent_control.policies.list_policy_control_sets(client, policy_id)
 
     # Verify response structure
-    assert "control_ids" in result
-    assert isinstance(result["control_ids"], list)
+    assert "control_set_ids" in result
+    assert isinstance(result["control_set_ids"], list)
 
-    print(f"✓ Policy has {len(result['control_ids'])} controls")
+    print(f"✓ Policy has {len(result['control_set_ids'])} control sets")
 
 
 @pytest.mark.asyncio
 async def test_policy_not_found_error(
-    client: agent_protect.AgentProtectClient
+    client: agent_control.AgentControlClient
 ) -> None:
     """
     Test error handling for non-existent policy.
@@ -159,7 +171,7 @@ async def test_policy_not_found_error(
     non_existent_policy_id = 999999
 
     with pytest.raises(Exception) as exc_info:
-        await agent_protect.policies.list_policy_controls(
+        await agent_control.policies.list_policy_control_sets(
             client,
             non_existent_policy_id
         )

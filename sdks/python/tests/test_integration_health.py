@@ -7,13 +7,13 @@ These tests verify basic server functionality:
 3. Error handling
 """
 
-import agent_protect
+import agent_control
 import pytest
 
 
 @pytest.mark.asyncio
 async def test_health_check_workflow(
-    client: agent_protect.AgentProtectClient
+    client: agent_control.AgentControlClient
 ) -> None:
     """
     Test server health check.
@@ -41,7 +41,7 @@ async def test_client_context_manager() -> None:
     - Client can be created and closed properly
     - Context manager handles cleanup
     """
-    async with agent_protect.AgentProtectClient() as client:
+    async with agent_control.AgentControlClient() as client:
         # Verify client is initialized
         assert client._client is not None
 
@@ -65,7 +65,7 @@ async def test_invalid_server_url() -> None:
     invalid_url = "http://invalid-server-that-does-not-exist:9999"
 
     with pytest.raises(Exception):
-        async with agent_protect.AgentProtectClient(base_url=invalid_url) as client:
+        async with agent_control.AgentControlClient(base_url=invalid_url) as client:
             await client.health_check()
 
     print("✓ Invalid server URL correctly raises error")

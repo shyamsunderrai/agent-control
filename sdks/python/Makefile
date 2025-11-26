@@ -19,7 +19,7 @@ test:
 	@echo "Starting server for tests..."
 	$(MAKE) -C ../../ server-alembic-upgrade
 	@# Start server in background and save PID
-	@uv run --package agent-protect-server uvicorn agent_protect_server.main:app --port 8000 --host 0.0.0.0 > server.log 2>&1 & echo $$! > server.pid
+	@uv run --package agent-control-server uvicorn agent_control_server.main:app --port 8000 --host 0.0.0.0 > server.log 2>&1 & echo $$! > server.pid
 	@echo "Waiting for server..."
 	@bash -c 'for i in {1..30}; do if curl -s http://localhost:8000/health >/dev/null; then echo "Server up!"; exit 0; fi; sleep 1; done; echo "Server failed"; cat server.log; exit 1'
 	@# Run tests, capture exit code, and ensure cleanup

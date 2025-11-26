@@ -1,14 +1,14 @@
 [project]
-name = "agent-protect-engine"
+name = "agent-control-engine"
 version = "0.1.0"
-description = "Rule execution engine for Agent Protect"
+description = "Control execution engine for Agent Control"
 requires-python = ">=3.12"
 dependencies = [
-    "agent-protect-models>=0.1.0",
+    "agent-control-models>=0.1.0",
     "google-re2>=1.1",
 ]
 authors = [
-    {name = "Agent Protect Team"}
+    {name = "Agent Control Team"}
 ]
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -26,4 +26,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agent_protect_engine"]
+packages = ["src/agent_control_engine"]

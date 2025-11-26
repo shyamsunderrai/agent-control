@@ -10,26 +10,46 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-import agent_protect
+import agent_control
 import httpx
 import pytest
 import pytest_asyncio
 
 
+def pytest_exception_interact(node, call, report):
+    """
+    Hook to print response body on HTTP errors.
+    """
+    if call.excinfo is not None:
+        exc = call.excinfo.value
+        if isinstance(exc, httpx.HTTPStatusError):
+            print("\n--- HTTP Error Details ---")
+            print(f"URL: {exc.request.url}")
+            print(f"Method: {exc.request.method}")
+            print(f"Status Code: {exc.response.status_code}")
+            try:
+                print("Response JSON:")
+                import json
+                print(json.dumps(exc.response.json(), indent=2))
+            except Exception:
+                print(f"Response Text: {exc.response.text}")
+            print("--------------------------")
+
+
 @pytest.fixture(scope="session")
 def server_url() -> str:
     """
-    Get the Agent Protect server URL from environment or use default.
+    Get the Agent Control server URL from environment or use default.
 
-    Override with AGENT_PROTECT_TEST_URL environment variable.
+    Override with AGENT_CONTROL_TEST_URL environment variable.
     """
-    return os.getenv("AGENT_PROTECT_TEST_URL", "http://localhost:8000")
+    return os.getenv("AGENT_CONTROL_TEST_URL", "http://localhost:8000")
 
 
 @pytest_asyncio.fixture(scope="session")
 async def verify_server_running(server_url: str) -> None:
     """
-    Verify that the Agent Protect server is running before tests.
+    Verify that the Agent Control server is running before tests.
 
     Raises pytest.skip if server is not available.
     """
@@ -39,20 +59,20 @@ async def verify_server_running(server_url: str) -> None:
             response.raise_for_status()
             print(f"\n✓ Server is running at {server_url}")
     except Exception as e:
-        pytest.skip(f"Agent Protect server not available at {server_url}: {e}")
+        pytest.skip(f"Agent Control server not available at {server_url}: {e}")
 
 
 @pytest_asyncio.fixture
 async def client(
     server_url: str,
     verify_server_running: None
-) -> AsyncGenerator[agent_protect.AgentProtectClient, None]:
+) -> AsyncGenerator[agent_control.AgentControlClient, None]:
     """
-    Provide an authenticated Agent Protect client for tests.
+    Provide an authenticated Agent Control client for tests.
 
     The client is automatically closed after the test completes.
     """
-    async with agent_protect.AgentProtectClient(base_url=server_url) as client:
+    async with agent_control.AgentControlClient(base_url=server_url) as client:
         yield client
 
 
@@ -70,7 +90,7 @@ def test_agent_id() -> str:
 
 @pytest_asyncio.fixture
 async def test_agent(
-    client: agent_protect.AgentProtectClient,
+    client: agent_control.AgentControlClient,
     test_agent_id: str,
     server_url: str
 ) -> AsyncGenerator[dict[str, Any], None]:
@@ -82,7 +102,7 @@ async def test_agent(
     # Create agent instance
     from datetime import UTC, datetime
 
-    from agent_protect_models import Agent
+    from agent_control_models import Agent
 
     # Generate a proper UUID4 for the agent
     agent_uuid = uuid.uuid4()
@@ -98,7 +118,7 @@ async def test_agent(
     )
 
     # Register agent
-    response = await agent_protect.agents.register_agent(
+    response = await agent_control.agents.register_agent(
         client,
         agent,
         tools=[
@@ -121,7 +141,7 @@ async def test_agent(
 
 @pytest_asyncio.fixture
 async def test_policy(
-    client: agent_protect.AgentProtectClient,
+    client: agent_control.AgentControlClient,
     unique_name: str
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
@@ -130,7 +150,7 @@ async def test_policy(
     Returns the policy data. Note: Cleanup should be done manually
     as we don't have a delete endpoint yet.
     """
-    result = await agent_protect.policies.create_policy(
+    result = await agent_control.policies.create_policy(
         client,
         f"test-policy-{unique_name}"
     )
@@ -142,7 +162,7 @@ async def test_policy(
 
 @pytest_asyncio.fixture
 async def test_control(
-    client: agent_protect.AgentProtectClient,
+    client: agent_control.AgentControlClient,
     unique_name: str
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
@@ -151,7 +171,7 @@ async def test_control(
     Returns the control data. Note: Cleanup should be done manually
     as we don't have a delete endpoint yet.
     """
-    result = await agent_protect.controls.create_control(
+    result = await agent_control.controls.create_control(
         client,
         f"test-control-{unique_name}"
     )

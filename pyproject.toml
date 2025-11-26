@@ -11,8 +11,8 @@
 members = ["models", "server", "sdks/python", "engine"]
 
 [tool.uv.sources]
-agent-protect-models = { workspace = true }
-agent-protect-engine = { workspace = true }
+agent-control-models = { workspace = true }
+agent-control-engine = { workspace = true }
 
 [tool.ruff]
 line-length = 100

@@ -14,11 +14,11 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 
-# Optional: Import agent_protect if available
+# Optional: Import agent_control if available
 try:
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../sdks/python/src"))
-    from agent_protect import AgentProtectClient
+    from agent_control import AgentControlClient
     AGENT_PROTECT_AVAILABLE = True
 except ImportError:
     AGENT_PROTECT_AVAILABLE = False
@@ -70,9 +70,9 @@ async def safety_check_node(state: AgentState) -> dict:
 
     # Check with Agent Protect
     try:
-        agent_protect_url = os.getenv("AGENT_PROTECT_URL", "http://localhost:8000")
-        async with AgentProtectClient(base_url=agent_protect_url) as client:
-            result = await client.check_protection(
+        agent_control_url = os.getenv("AGENT_PROTECT_URL", "http://localhost:8000")
+        async with AgentControlClient(base_url=agent_control_url) as client:
+            result = await client.check_evaluation(
                 content=user_content,
                 context={"source": "langgraph_agent", "message_type": "user_input"}
             )

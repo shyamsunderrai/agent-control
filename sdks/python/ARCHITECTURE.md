@@ -67,15 +67,15 @@ async with agent_protect.AgentProtectClient() as client:
 
 **Endpoints Covered**:
 - `PUT /api/v1/policies` - Create a new policy
-- `POST /api/v1/policies/{policy_id}/controls/{control_id}` - Add control to policy
-- `DELETE /api/v1/policies/{policy_id}/controls/{control_id}` - Remove control from policy
-- `GET /api/v1/policies/{policy_id}/controls` - List policy controls
+- `POST /api/v1/policies/{policy_id}/control_sets/{control_set_id}` - Add control set to policy
+- `DELETE /api/v1/policies/{policy_id}/control_sets/{control_set_id}` - Remove control set from policy
+- `GET /api/v1/policies/{policy_id}/control_sets` - List policy control sets
 
 **Functions**:
 - `async def create_policy(client, name)` - Create a new policy
-- `async def add_control_to_policy(client, policy_id, control_id)` - Associate control
-- `async def remove_control_from_policy(client, policy_id, control_id)` - Dissociate control
-- `async def list_policy_controls(client, policy_id)` - List all controls in policy
+- `async def add_control_set_to_policy(client, policy_id, control_set_id)` - Associate control set
+- `async def remove_control_set_from_policy(client, policy_id, control_set_id)` - Dissociate control set
+- `async def list_policy_control_sets(client, policy_id)` - List all control sets in policy
 
 **Usage**:
 ```python
@@ -86,9 +86,9 @@ async with agent_protect.AgentProtectClient() as client:
     result = await agent_protect.policies.create_policy(client, "prod-policy")
     policy_id = result["policy_id"]
     
-    # Add control to policy
-    await agent_protect.policies.add_control_to_policy(
-        client, policy_id=1, control_id=5
+    # Add control set to policy
+    await agent_protect.policies.add_control_set_to_policy(
+        client, policy_id=1, control_set_id=5
     )
 ```
 
@@ -136,7 +136,7 @@ async with agent_protect.AgentProtectClient() as client:
 **Usage**:
 ```python
 import agent_protect
-from agent_protect_models import LlmCall
+from agent_control_models import LlmCall
 
 async with agent_protect.AgentProtectClient() as client:
     result = await agent_protect.protection.check_protection(
@@ -222,7 +222,7 @@ import agent_protect
 
 async with agent_protect.AgentProtectClient() as client:
     result = await agent_protect.policies.create_policy(client, "my-policy")
-    await agent_protect.policies.add_control_to_policy(client, 1, 5)
+    await agent_protect.policies.add_control_set_to_policy(client, 1, 5)
 ```
 
 **Benefits of New Structure**:

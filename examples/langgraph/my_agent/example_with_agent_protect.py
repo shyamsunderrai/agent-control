@@ -1,5 +1,5 @@
 """
-Example using the new agent_protect.init() interface.
+Example using the new agent_control.init() interface.
 
 This is the cleanest way to initialize and protect your agent.
 """
@@ -12,13 +12,13 @@ from pathlib import Path
 sdk_path = Path(__file__).parents[3] / "sdks" / "python" / "src"
 sys.path.insert(0, str(sdk_path))
 
-import agent_protect
-from agent_protect import protect
+import agent_control
+from agent_control import protect
 
 # ============================================================================
 # STEP 1: Initialize at the base of your agent - ONE LINE with YOUR metadata!
 # ============================================================================
-agent_protect.init(
+agent_control.init(
     agent_name="Example Customer Service Bot",
     agent_id="csbot-example-v1",
     agent_description="Handles customer inquiries with safety checks",
@@ -53,7 +53,7 @@ async def generate_response(query: str, ctx: dict) -> str:
 # STEP 3: Use your protected functions
 # ============================================================================
 async def main():
-    """Demonstrate the agent_protect.init() approach."""
+    """Demonstrate the agent_control.init() approach."""
 
     print("=" * 80)
     print("AGENT PROTECT - SIMPLIFIED INITIALIZATION")
@@ -61,7 +61,7 @@ async def main():
     print()
 
     # Get agent info
-    agent = agent_protect.get_agent()
+    agent = agent_control.get_agent("csbot-example-v1")
     print(f"Agent Name: {agent.agent_name}")
     print(f"Agent ID: {agent.agent_id}")
     print(f"Description: {agent.agent_description}")
@@ -116,9 +116,9 @@ async def main():
     print("✓ Protection active on all decorated functions")
     print()
     print("Usage:")
-    print("  import agent_protect")
-    print("  agent_protect.init(agent_name='...', agent_id='...')")
-    print("  from agent_protect import protect")
+    print("  import agent_control")
+    print("  agent_control.init(agent_name='...', agent_id='...')")
+    print("  from agent_control import protect")
     print()
 
 

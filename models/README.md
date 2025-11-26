@@ -45,7 +45,7 @@ uv add agent-protect-models
 ### Basic Usage
 
 ```python
-from agent_protect_models import ProtectionRequest, ProtectionResponse
+from agent_control_models import ProtectionRequest, ProtectionResponse
 
 # Create a request
 request = ProtectionRequest(
@@ -65,7 +65,7 @@ request_copy = ProtectionRequest.from_json(json_str)
 ### Dictionary Conversion
 
 ```python
-from agent_protect_models import ProtectionResponse
+from agent_control_models import ProtectionResponse
 
 # Create from dict
 response = ProtectionResponse.from_dict({
@@ -83,7 +83,7 @@ print(data)
 ### Client-Side Result
 
 ```python
-from agent_protect_models import ProtectionResult
+from agent_control_models import ProtectionResult
 
 result = ProtectionResult(
     is_safe=True,
@@ -208,7 +208,7 @@ result = ProtectionResponse.from_dict(response_data)
 
 ### Adding New Models
 
-1. Create a new file in `src/agent_protect_models/`
+1. Create a new file in `src/agent_control_models/`
 2. Define models extending `BaseModel`
 3. Export in `__init__.py`
 4. Update both server and SDK to use the new models
@@ -216,13 +216,13 @@ result = ProtectionResponse.from_dict(response_data)
 Example:
 
 ```python
-# src/agent_protect_models/auth.py
+# src/agent_control_models/auth.py
 from .base import BaseModel
 
 class AuthRequest(BaseModel):
     api_key: str
     
-# src/agent_protect_models/__init__.py
+# src/agent_control_models/__init__.py
 from .auth import AuthRequest
 
 __all__ = [..., "AuthRequest"]

@@ -18,12 +18,12 @@ from typing import Any
 
 import yaml
 
-# Optional: Import agent_protect if available
+# Optional: Import agent_control if available
 try:
     import sys
 
     # Try to import from the unified package
-    from agent_protect import AgentProtectClient
+    from agent_control import AgentControlClient
     SDK_AVAILABLE = True
 except ImportError:
     SDK_AVAILABLE = False
@@ -147,7 +147,7 @@ class ProtectEngine:
 
     async def _register_and_fetch(self) -> None:
         """Register agent with server and fetch rules."""
-        async with AgentProtectClient(base_url=self.server_url) as client:
+        async with AgentControlClient(base_url=self.server_url) as client:
             # Register the agent
             # In a real implementation, the server would have an endpoint for this
             print(f"✓ Agent '{self.agent_id}' connecting to {self.server_url}")

@@ -171,7 +171,7 @@ cd typescript
 
 ## Troubleshooting
 
-### Issue: ModuleNotFoundError for agent_protect_models
+### Issue: ModuleNotFoundError for agent_control_models
 
 **Solution**: Run `uv sync` in the workspace directory (server/ or sdks/)
 

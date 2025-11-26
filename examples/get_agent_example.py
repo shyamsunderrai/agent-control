@@ -3,21 +3,21 @@ Example demonstrating how to fetch agent details from the server.
 """
 
 import asyncio
-import agent_protect
+import agent_control
 
 
 async def example_with_client():
-    """Example using AgentProtectClient directly."""
+    """Example using AgentControlClient directly."""
     print("=" * 80)
-    print("EXAMPLE 1: Using AgentProtectClient")
+    print("EXAMPLE 1: Using AgentControlClient")
     print("=" * 80)
     print()
 
-    async with agent_protect.AgentProtectClient() as client:
+    async with agent_control.AgentControlClient() as client:
         try:
             # Get agent by ID using the agents module
             agent_id = "550e8400-e29b-41d4-a716-446655440000"
-            agent_data = await agent_protect.agents.get_agent(client, agent_id)
+            agent_data = await agent_control.agents.get_agent(client, agent_id)
             
             print(f"✓ Found agent!")
             print(f"  Name: {agent_data['agent']['agent_name']}")
@@ -46,7 +46,7 @@ async def example_module_function():
 
     try:
         agent_id = "550e8400-e29b-41d4-a716-446655440000"
-        agent_data = await agent_protect.get_agent(agent_id)
+        agent_data = await agent_control.get_agent(agent_id)
         
         print(f"✓ Found agent: {agent_data['agent']['agent_name']}")
         print(f"  Tools: {len(agent_data['tools'])}")
@@ -65,14 +65,14 @@ def example_current_agent():
     print()
 
     # Initialize an agent
-    agent = agent_protect.init(
+    agent = agent_control.init(
         agent_name="Test Bot",
         agent_id="test-bot-123",
         agent_description="A test bot for demonstration"
     )
     
     # Get the current agent
-    current = agent_protect.current_agent()
+    current = agent_control.current_agent()
     
     if current:
         print(f"✓ Current agent: {current.agent_name}")
@@ -104,8 +104,8 @@ async def main():
     print("SUMMARY")
     print("=" * 80)
     print("• Use client.get_agent(id) for full control")
-    print("• Use agent_protect.get_agent(id) for simple async fetch")
-    print("• Use agent_protect.current_agent() for locally initialized agent")
+    print("• Use agent_control.get_agent(id) for simple async fetch")
+    print("• Use agent_control.current_agent() for locally initialized agent")
     print()
 
 

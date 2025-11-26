@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agent_protect_server.db import get_async_db
+from agent_control_server.db import get_async_db
 
 
 async def mock_db_with_commit_failure() -> AsyncGenerator[AsyncSession, None]:
@@ -96,7 +96,7 @@ def test_init_agent_rollback_on_update_failure(
         ],
     }
 
-    from agent_protect_server.models import Agent
+    from agent_control_server.models import Agent
     from sqlalchemy.orm import Session
 
     with Session(db_engine) as session:
@@ -147,6 +147,25 @@ def test_create_policy_rollback_on_failure(
         app.dependency_overrides.clear()
 
 
+def test_create_control_set_rollback_on_failure(
+    app: FastAPI, client: TestClient
+) -> None:
+    """Test that create_control_set rolls back transaction when commit fails."""
+    # Given: a valid control set creation request
+    control_set_name = f"test-cs-{uuid.uuid4()}"
+
+    # When: commit fails during control set creation
+    app.dependency_overrides[get_async_db] = mock_db_with_commit_failure
+    try:
+        resp = client.put("/api/v1/control-sets", json={"name": control_set_name})
+
+        # Then: rollback is called and 500 error is returned
+        assert resp.status_code == 500
+        assert "database error" in resp.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_create_control_rollback_on_failure(
     app: FastAPI, client: TestClient
 ) -> None:
@@ -158,25 +177,6 @@ def test_create_control_rollback_on_failure(
     app.dependency_overrides[get_async_db] = mock_db_with_commit_failure
     try:
         resp = client.put("/api/v1/controls", json={"name": control_name})
-
-        # Then: rollback is called and 500 error is returned
-        assert resp.status_code == 500
-        assert "database error" in resp.json()["detail"].lower()
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_create_rule_rollback_on_failure(
-    app: FastAPI, client: TestClient
-) -> None:
-    """Test that create_rule rolls back transaction when commit fails."""
-    # Given: a valid rule creation request
-    rule_name = f"test-rule-{uuid.uuid4()}"
-
-    # When: commit fails during rule creation
-    app.dependency_overrides[get_async_db] = mock_db_with_commit_failure
-    try:
-        resp = client.put("/api/v1/rules", json={"name": rule_name})
 
         # Then: rollback is called and 500 error is returned
         assert resp.status_code == 500
@@ -210,7 +210,7 @@ def test_set_agent_policy_rollback_on_failure(
     policy_id = r2.json()["policy_id"]
 
     # When: commit fails during policy assignment
-    from agent_protect_server.models import Agent, Policy
+    from agent_control_server.models import Agent, Policy
     from sqlalchemy.orm import Session
 
     with Session(db_engine) as session:
@@ -263,23 +263,23 @@ def test_set_agent_policy_rollback_on_failure(
             app.dependency_overrides.clear()
 
 
-def test_add_control_to_policy_rollback_on_failure(
+def test_add_control_set_to_policy_rollback_on_failure(
     app: FastAPI, client: TestClient, db_engine: object
 ) -> None:
-    """Test that add_control_to_policy rolls back transaction when commit fails."""
-    # Given: an existing policy and control
+    """Test that add_control_set_to_policy rolls back transaction when commit fails."""
+    # Given: an existing policy and control set
     policy_name = f"test-policy-{uuid.uuid4()}"
     r1 = client.put("/api/v1/policies", json={"name": policy_name})
     assert r1.status_code == 200
     policy_id = r1.json()["policy_id"]
 
-    control_name = f"test-control-{uuid.uuid4()}"
-    r2 = client.put("/api/v1/controls", json={"name": control_name})
+    control_set_name = f"test-cs-{uuid.uuid4()}"
+    r2 = client.put("/api/v1/control-sets", json={"name": control_set_name})
     assert r2.status_code == 200
-    control_id = r2.json()["control_id"]
+    control_set_id = r2.json()["control_set_id"]
 
     # When: commit fails during association
-    from agent_protect_server.models import Control, Policy
+    from agent_control_server.models import ControlSet, Policy
     from sqlalchemy.orm import Session
 
     with Session(db_engine) as session:
@@ -288,13 +288,13 @@ def test_add_control_to_policy_rollback_on_failure(
             .filter(Policy.id == int(policy_id))
             .first()
         )
-        existing_control = (
-            session.query(Control)
-            .filter(Control.id == int(control_id))
+        existing_control_set = (
+            session.query(ControlSet)
+            .filter(ControlSet.id == int(control_set_id))
             .first()
         )
         assert existing_policy is not None
-        assert existing_control is not None
+        assert existing_control_set is not None
 
         async def mock_db_for_association() -> AsyncGenerator[AsyncSession, None]:
             from unittest.mock import MagicMock
@@ -308,10 +308,10 @@ def test_add_control_to_policy_rollback_on_failure(
                 existing_policy
             )
 
-            # Mock the control query
-            mock_control_result = MagicMock()
-            mock_control_result.scalars.return_value.first.return_value = (
-                existing_control
+            # Mock the control set query
+            mock_cs_result = MagicMock()
+            mock_cs_result.scalars.return_value.first.return_value = (
+                existing_control_set
             )
 
             # Mock the exists check (should return None to indicate no existing association)
@@ -321,7 +321,7 @@ def test_add_control_to_policy_rollback_on_failure(
             # Return different results for different queries
             mock_session.execute = AsyncMock(side_effect=[
                 mock_policy_result,
-                mock_control_result,
+                mock_cs_result,
                 mock_exists_result,
                 MagicMock(),  # for the insert
             ])
@@ -330,7 +330,7 @@ def test_add_control_to_policy_rollback_on_failure(
         app.dependency_overrides[get_async_db] = mock_db_for_association
         try:
             resp = client.post(
-                f"/api/v1/policies/{policy_id}/controls/{control_id}"
+                f"/api/v1/policies/{policy_id}/control_sets/{control_set_id}"
             )
 
             # Then: rollback is called and 500 error is returned
@@ -340,42 +340,42 @@ def test_add_control_to_policy_rollback_on_failure(
             app.dependency_overrides.clear()
 
 
-def test_set_rule_data_rollback_on_failure(
+def test_set_control_data_rollback_on_failure(
     app: FastAPI, client: TestClient, db_engine: object
 ) -> None:
-    """Test that set_rule_data rolls back transaction when commit fails."""
-    # Given: an existing rule
-    rule_name = f"test-rule-{uuid.uuid4()}"
-    r1 = client.put("/api/v1/rules", json={"name": rule_name})
+    """Test that set_control_data rolls back transaction when commit fails."""
+    # Given: an existing control
+    control_name = f"test-control-{uuid.uuid4()}"
+    r1 = client.put("/api/v1/controls", json={"name": control_name})
     assert r1.status_code == 200
-    rule_id = r1.json()["rule_id"]
+    control_id = r1.json()["control_id"]
 
     # When: commit fails during data update
-    from agent_protect_server.models import Rule
+    from agent_control_server.models import Control
     from sqlalchemy.orm import Session
 
     with Session(db_engine) as session:
-        existing_rule = (
-            session.query(Rule).filter(Rule.id == int(rule_id)).first()
+        existing_control = (
+            session.query(Control).filter(Control.id == int(control_id)).first()
         )
-        assert existing_rule is not None
+        assert existing_control is not None
 
-        async def mock_db_returns_rule() -> AsyncGenerator[AsyncSession, None]:
+        async def mock_db_returns_control() -> AsyncGenerator[AsyncSession, None]:
             from unittest.mock import MagicMock
             
             mock_session = AsyncMock(spec=AsyncSession)
             mock_session.commit.side_effect = Exception("Database error")
             
             mock_result = MagicMock()
-            mock_result.scalars.return_value.first.return_value = existing_rule
+            mock_result.scalars.return_value.first.return_value = existing_control
             mock_session.execute = AsyncMock(return_value=mock_result)
             
             yield mock_session
 
-        app.dependency_overrides[get_async_db] = mock_db_returns_rule
+        app.dependency_overrides[get_async_db] = mock_db_returns_control
         try:
             valid_payload = {
-                "description": "Valid Rule",
+                "description": "Valid Control",
                 "enabled": True,
                 "applies_to": "llm_call",
                 "check_stage": "pre",
@@ -384,7 +384,7 @@ def test_set_rule_data_rollback_on_failure(
                 "action": {"decision": "deny"}
             }
             resp = client.put(
-                f"/api/v1/rules/{rule_id}/data", json={"data": valid_payload}
+                f"/api/v1/controls/{control_id}/data", json={"data": valid_payload}
             )
 
             # Then: rollback is called and 500 error is returned

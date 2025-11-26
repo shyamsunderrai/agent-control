@@ -2,11 +2,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
-from agent_protect_server.config import db_config
-from agent_protect_server.db import Base
-from agent_protect_server.main import app as fastapi_app
+from agent_control_server.config import db_config
+from agent_control_server.db import Base
+from agent_control_server.main import app as fastapi_app
 
-import agent_protect_server.models  # ensure models are imported so tables are registered
+import agent_control_server.models  # ensure models are imported so tables are registered
 
 # Create sync engine for tests (schema creation/cleanup)
 engine = create_engine(db_config.get_url(), echo=False)
@@ -58,9 +58,9 @@ def clean_db():
     with engine.begin() as conn:
         # Delete in dependency order (children before parents)
         conn.execute(text("DELETE FROM agents"))
-        conn.execute(text("DELETE FROM policy_controls"))
-        conn.execute(text("DELETE FROM control_rules"))
+        conn.execute(text("DELETE FROM policy_control_sets"))
+        conn.execute(text("DELETE FROM control_set_controls"))
         conn.execute(text("DELETE FROM policies"))
+        conn.execute(text("DELETE FROM control_sets"))
         conn.execute(text("DELETE FROM controls"))
-        conn.execute(text("DELETE FROM rules"))
     yield

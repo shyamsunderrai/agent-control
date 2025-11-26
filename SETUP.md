@@ -207,7 +207,7 @@ agent-protect/
 │   ├── pyproject.toml
 │   ├── README.md
 │   └── src/
-│       └── agent_protect_models/
+│       └── agent_control_models/
 │           ├── __init__.py
 │           ├── base.py
 │           ├── health.py
@@ -299,7 +299,7 @@ This structure allows independent development while maintaining shared models.
 
 **Solution**: Install UV following Step 1 above, then restart your terminal.
 
-### Issue: `ModuleNotFoundError: No module named 'agent_protect_models'`
+### Issue: `ModuleNotFoundError: No module named 'agent_control_models'`
 
 **Solution**: Run `uv sync` in the workspace directory (server/ or sdks/) to install dependencies including the models path reference.
 

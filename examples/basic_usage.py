@@ -2,13 +2,13 @@
 
 import asyncio
 
-from agent_protect import AgentProtectClient
+from agent_control import AgentControlClient
 
 
 async def main() -> None:
     """Demonstrate basic SDK usage."""
     # Create client with context manager (recommended)
-    async with AgentProtectClient(base_url="http://localhost:8000") as client:
+    async with AgentControlClient(base_url="http://localhost:8000") as client:
         # 1. Health check
         print("1. Checking server health...")
         health = await client.health_check()
@@ -17,14 +17,14 @@ async def main() -> None:
 
         # 2. Simple protection check
         print("2. Simple protection check...")
-        result = await client.check_protection("Hello, this is a safe message")
+        result = await client.check_evaluation("Hello, this is a safe message")
         print(f"   Is safe: {result.is_safe}")
         print(f"   Confidence: {result.confidence:.2f}")
         print(f"   Reason: {result.reason}\n")
 
         # 3. Protection check with context
         print("3. Protection check with context...")
-        result = await client.check_protection(
+        result = await client.check_evaluation(
             content="User submitted content here",
             context={"source": "user_input", "user_id": "12345"},
         )
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
     print("Make sure the server is running:")
-    print("  cd server && uv run agent-protect-server")
+    print("  cd server && uv run agent-control-server")
     print()
     print("=" * 60)
     print()

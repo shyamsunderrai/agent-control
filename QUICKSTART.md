@@ -104,7 +104,7 @@ uv run python examples/models_usage.py
 ```
 agent-protect/
 ├── models/                    # 📦 Shared Pydantic models
-│   ├── src/agent_protect_models/
+│   ├── src/agent_control_models/
 │   │   ├── base.py           # Base model with utilities
 │   │   ├── health.py         # Health check models
 │   │   └── protection.py     # Protection models
@@ -135,7 +135,7 @@ agent-protect/
 All data models are defined in the `models` package:
 
 ```python
-from agent_protect_models import ProtectionRequest, ProtectionResult
+from agent_control_models import ProtectionRequest, ProtectionResult
 
 # Server uses them
 request = ProtectionRequest(content="test")
@@ -151,7 +151,7 @@ This ensures type safety and consistency between server and SDK.
 All models support both Pydantic validation and JSON:
 
 ```python
-from agent_protect_models import ProtectionRequest
+from agent_control_models import ProtectionRequest
 
 # Create with validation
 request = ProtectionRequest(content="test")
@@ -175,7 +175,7 @@ Each package can be deployed independently:
 
 ### Add a New Endpoint
 
-1. **Define models** (in `models/src/agent_protect_models/`):
+1. **Define models** (in `models/src/agent_control_models/`):
 
 ```python
 class NewRequest(BaseModel):
@@ -291,7 +291,7 @@ client = AgentProtectClient(
 
 ### Server won't start
 
-**Error**: `ModuleNotFoundError: No module named 'agent_protect_models'`
+**Error**: `ModuleNotFoundError: No module named 'agent_control_models'`
 
 **Solution**: Run `uv sync` from the root directory to install workspace dependencies.
 
@@ -307,9 +307,9 @@ curl http://localhost:8000/health
 
 ### Import errors
 
-**Error**: `ImportError: cannot import name 'X' from 'agent_protect_models'`
+**Error**: `ImportError: cannot import name 'X' from 'agent_control_models'`
 
-**Solution**: Check that the model is exported in `models/src/agent_protect_models/__init__.py`:
+**Solution**: Check that the model is exported in `models/src/agent_control_models/__init__.py`:
 
 ```python
 from .module import X

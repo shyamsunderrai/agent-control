@@ -563,7 +563,7 @@ asyncio.run(check())
 
 ### Common Issues
 
-**Problem**: `ModuleNotFoundError: No module named 'agent_protect_models'`
+**Problem**: `ModuleNotFoundError: No module named 'agent_control_models'`
 
 **Solution**: Install models package first or ensure workspace dependencies are set up correctly.
 

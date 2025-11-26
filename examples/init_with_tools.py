@@ -1,12 +1,12 @@
 """
-Example demonstrating agent_protect.init() with tool registration.
+Example demonstrating agent_control.init() with tool registration.
 
 This shows how to register an agent with the server including tool schemas.
 """
 
 import asyncio
-import agent_protect
-from agent_protect import protect
+import agent_control
+from agent_control import protect
 
 
 # Define tool schemas
@@ -55,7 +55,7 @@ tools = [
 
 
 # Initialize agent with tools
-agent = agent_protect.init(
+agent = agent_control.init(
     agent_name="Customer Support Agent",
     agent_id="cs-agent-prod-v1",
     agent_description="Handles customer support inquiries with knowledge base search and email",

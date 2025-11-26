@@ -2,9 +2,9 @@
 from typing import Any
 
 import pytest
-from agent_protect_models import LlmCall, ToolCall
+from agent_control_models import LlmCall, ToolCall
 
-from agent_protect_engine.selectors import select_data
+from agent_control_engine.selectors import select_data
 
 
 @pytest.fixture

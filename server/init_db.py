@@ -5,8 +5,8 @@ import asyncio
 
 from sqlalchemy import create_engine
 
-from src.agent_protect_server.config import db_config
-from src.agent_protect_server.models import Base
+from src.agent_control_server.config import db_config
+from src.agent_control_server.models import Base
 
 
 async def init_db():

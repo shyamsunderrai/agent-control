@@ -53,7 +53,7 @@ This will:
 
 **Verify:**
 ```bash
-uv run python -c "from agent_protect_models import Agent; print('✓ Models installed')"
+uv run python -c "from agent_control_models import Agent; print('✓ Models installed')"
 ```
 
 ### Step 2: Install Server Workspace
@@ -72,7 +72,7 @@ This will:
 **Verify:**
 ```bash
 # Check server can import models
-uv run python -c "from agent_protect_models import ProtectionRequest; print('✓ Server can access models')"
+uv run python -c "from agent_control_models import ProtectionRequest; print('✓ Server can access models')"
 
 # Check server module
 uv run python -c "from agent_protect_server.main import app; print('✓ Server module loaded')"
@@ -94,7 +94,7 @@ This will:
 **Verify:**
 ```bash
 # Check SDK can import models
-uv run python -c "from agent_protect_models import Agent; print('✓ SDK can access models')"
+uv run python -c "from agent_control_models import Agent; print('✓ SDK can access models')"
 
 # Check SDK module
 uv run python -c "from agent_protect import AgentProtectClient; print('✓ SDK module loaded')"
@@ -183,7 +183,7 @@ When you change models:
 cd models
 
 # Edit files
-vim src/agent_protect_models/protection.py
+vim src/agent_control_models/protection.py
 
 # Changes are immediately available (editable install)
 # No need to reinstall
@@ -390,7 +390,7 @@ For each workspace, set the Python interpreter to the uv virtual environment:
 
 ## Troubleshooting
 
-### Issue: "Module not found: agent_protect_models"
+### Issue: "Module not found: agent_control_models"
 
 **Solution:** Ensure models are installed and paths are correct:
 
