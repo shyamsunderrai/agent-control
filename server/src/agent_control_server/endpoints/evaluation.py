@@ -1,9 +1,10 @@
 """Evaluation analysis endpoints."""
+
 from typing import Any
 
 from agent_control_engine.core import ControlEngine
 from agent_control_models import ControlDefinition, EvaluationRequest, EvaluationResponse
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
@@ -32,13 +33,21 @@ class ControlAdapter:
 )
 async def evaluate(
     request: EvaluationRequest,
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
 ) -> EvaluationResponse:
-    """Analyze content for safety and control violations."""
-    # 1. Fetch controls for the agent
+    """Analyze content for safety and control violations.
+
+    Runs all controls assigned to the agent via policy through the
+    evaluation engine. Controls are evaluated in parallel with
+    cancel-on-deny for efficiency.
+
+    Custom evaluators must be deployed as PluginEvaluator classes
+    with the engine. Their schemas are registered via initAgent.
+    """
+    # Fetch controls for the agent
     api_controls = await list_controls_for_agent(request.agent_uuid, db)
 
-    # 2. Adapt controls for the engine
+    # Adapt controls for the engine
     engine_controls = []
     for c in api_controls:
         try:
@@ -47,6 +56,10 @@ async def evaluate(
             _logger.warning(f"Failed to adapt control '{c.name}': {e}")
             continue
 
-    # 3. Execute Control Engine (async for plugin support)
+    # Execute Control Engine (parallel with cancel-on-deny)
     engine = ControlEngine(engine_controls)
-    return await engine.process_async(request)
+    try:
+        return await engine.process(request)
+    except ValueError as e:
+        _logger.error(f"Evaluation failed: {e}")
+        raise HTTPException(status_code=422, detail=str(e))

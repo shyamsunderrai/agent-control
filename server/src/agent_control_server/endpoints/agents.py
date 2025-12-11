@@ -1,31 +1,121 @@
 from typing import Any
 from uuid import UUID
 
+from agent_control_models import list_plugins
 from agent_control_models.agent import Agent as APIAgent
 from agent_control_models.agent import AgentTool
 from agent_control_models.server import (
     AgentControlsResponse,
     DeletePolicyResponse,
+    EvaluatorSchema,
     GetAgentResponse,
     GetPolicyResponse,
     InitAgentRequest,
     InitAgentResponse,
+    PatchAgentRequest,
+    PatchAgentResponse,
     SetPolicyResponse,
 )
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from pydantic_core._pydantic_core import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
 from ..logging_utils import get_logger
-from ..models import Agent, AgentData, AgentVersionedTool, Policy
+from ..models import Agent, AgentData, Policy
 from ..schema_generator import generate_agent_schema, validate_agent_schema
-from ..services.controls import list_controls_for_agent
+from ..services.controls import list_controls_for_agent, list_controls_for_policy
+from ..services.evaluator_utils import parse_evaluator_ref, validate_config_against_schema
+from ..services.schema_compat import (
+    check_schema_compatibility,
+    format_compatibility_error,
+)
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 _logger = get_logger(__name__)
+
+# Cache for built-in plugin names (populated on first use)
+_BUILTIN_PLUGIN_NAMES: set[str] | None = None
+
+
+def _get_builtin_plugin_names() -> set[str]:
+    """Get built-in plugin names (cached)."""
+    global _BUILTIN_PLUGIN_NAMES
+    if _BUILTIN_PLUGIN_NAMES is None:
+        _BUILTIN_PLUGIN_NAMES = set(list_plugins().keys())
+    return _BUILTIN_PLUGIN_NAMES
+
+
+async def _validate_policy_controls_for_agent(
+    agent: Agent, policy_id: int, db: AsyncSession
+) -> list[str]:
+    """Validate all controls in a policy can run on this agent.
+
+    Checks that agent-scoped evaluators referenced by controls:
+    1. Exist on the agent (registered via initAgent)
+    2. Have config that validates against the evaluator's schema
+
+    Returns:
+        List of error messages (empty if all valid)
+    """
+    errors: list[str] = []
+
+    # Parse agent's registered evaluators
+    try:
+        agent_data = AgentData.model_validate(agent.data)
+    except ValidationError:
+        return [f"Agent '{agent.name}' has corrupted data"]
+
+    agent_evaluators = {e.name: e for e in (agent_data.evaluators or [])}
+
+    # Get all controls for this policy
+    controls = await list_controls_for_policy(policy_id, db)
+
+    for control in controls:
+        if not control.data:
+            continue
+
+        evaluator_cfg = control.data.get("evaluator", {})
+        plugin = evaluator_cfg.get("plugin", "")
+        if not plugin:
+            continue
+
+        agent_name, eval_name = parse_evaluator_ref(plugin)
+        if agent_name is None:
+            continue  # Built-in plugin, already validated at control creation
+
+        # Agent-scoped evaluator - check if target matches this agent
+        if agent_name != agent.name:
+            errors.append(
+                f"Control '{control.name}' references evaluator '{plugin}' "
+                f"which belongs to agent '{agent_name}', not '{agent.name}'"
+            )
+            continue
+
+        # Check if evaluator exists on this agent
+        if eval_name not in agent_evaluators:
+            errors.append(
+                f"Control '{control.name}' references evaluator '{eval_name}' "
+                f"which is not registered with agent '{agent.name}'. "
+                f"Register it via initAgent or use a different evaluator."
+            )
+            continue
+
+        # Validate config against schema
+        registered_ev = agent_evaluators[eval_name]
+        config = evaluator_cfg.get("config", {})
+        if registered_ev.config_schema:
+            try:
+                validate_config_against_schema(config, registered_ev.config_schema)
+            except Exception as e:
+                errors.append(
+                    f"Control '{control.name}' has invalid config for evaluator '{eval_name}': {e}"
+                )
+
+    return errors
 
 
 @router.post(
@@ -59,6 +149,16 @@ async def init_agent(
         HTTPException 409: Agent name exists with different UUID
         HTTPException 500: Database error during creation/update
     """
+    # Check for evaluator name collisions with built-in plugins
+    builtin_names = _get_builtin_plugin_names()
+    for ev in request.evaluators:
+        if ev.name in builtin_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Evaluator name '{ev.name}' conflicts with built-in plugin. "
+                f"Choose a different name.",
+            )
+
     # Look up by name only; name is unique
     result = await db.execute(select(Agent).where(Agent.name == request.agent.agent_name))
     existing: Agent | None = result.scalars().first()
@@ -67,9 +167,6 @@ async def init_agent(
 
     if existing is None:
         created = True
-        versioned_tools = [
-            AgentVersionedTool(version=0, tool=tool) for tool in request.tools
-        ]
 
         # Generate agent schema from tools
         tools_dict = [tool.model_dump(mode="json") for tool in request.tools]
@@ -85,8 +182,9 @@ async def init_agent(
 
         data_model = AgentData(
             agent_metadata=request.agent.model_dump(mode="json"),
-            tools=versioned_tools,
-            agent_schema=agent_schema,  # Include schema in the model
+            tools=list(request.tools),
+            evaluators=list(request.evaluators),
+            agent_schema=agent_schema,
         )
 
         new_agent = Agent(
@@ -98,8 +196,8 @@ async def init_agent(
         try:
             await db.commit()
             _logger.info(
-                f"Created agent '{request.agent.agent_name}' with {len(request.tools)} tools "
-                f"and auto-generated schema"
+                f"Created agent '{request.agent.agent_name}' with {len(request.tools)} tools, "
+                f"{len(request.evaluators)} evaluators"
             )
         except Exception:
             await db.rollback()
@@ -124,60 +222,123 @@ async def init_agent(
     # Parse existing data via AgentData Pydantic model
     try:
         data_model = AgentData.model_validate(existing.data)
-    except ValidationError:
+    except ValidationError as e:
+        if not request.force_replace:
+            _logger.error(
+                f"Failed to parse existing agent data for '{request.agent.agent_name}'",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Agent '{request.agent.agent_name}' has corrupted data and cannot be updated. "
+                    f"Validation error: {str(e)}. "
+                    f"To replace with new data, set force_replace=true in the request."
+                ),
+            )
+        # User explicitly requested replacement
         _logger.warning(
-            f"Failed to parse existing agent data for '{request.agent.agent_name}'",
-            exc_info=True,
+            f"Force-replacing corrupted data for agent '{request.agent.agent_name}' "
+            f"due to force_replace=true. Original error: {e}"
         )
-        data_model = AgentData(agent_metadata={}, tools=[])
+        data_model = AgentData(agent_metadata={}, tools=[], evaluators=[])
 
-    changed = False
+    tools_changed = False
+    evaluators_changed = False
+    force_write = request.force_replace  # Always persist when force_replace=true
 
-    incoming_by_name: dict[str, AgentTool] = {t.tool_name: t for t in request.tools}
-    new_tools: list[AgentVersionedTool] = []
-    seen: set[str] = set()
+    # --- Update agent metadata ---
+    new_metadata = request.agent.model_dump(mode="json")
+    metadata_changed = data_model.agent_metadata != new_metadata
+    if metadata_changed:
+        data_model.agent_metadata = new_metadata
 
-    for vt in data_model.tools or []:
-        name = vt.tool.tool_name
-        if name in incoming_by_name:
-            if name not in seen:
-                incoming_tool = incoming_by_name[name]
-                if vt.tool.model_dump(mode="json") != incoming_tool.model_dump(mode="json"):
-                    changed = True
-                new_tools.append(AgentVersionedTool(version=0, tool=incoming_tool))
-                seen.add(name)
+    # --- Process tools ---
+    incoming_tools_by_name: dict[str, AgentTool] = {t.tool_name: t for t in request.tools}
+    new_tools: list[AgentTool] = []
+    seen_tools: set[str] = set()
+
+    for tool in data_model.tools or []:
+        name = tool.tool_name
+        if name in incoming_tools_by_name:
+            if name not in seen_tools:
+                incoming_tool = incoming_tools_by_name[name]
+                if tool.model_dump(mode="json") != incoming_tool.model_dump(mode="json"):
+                    tools_changed = True
+                new_tools.append(incoming_tool)
+                seen_tools.add(name)
         else:
-            new_tools.append(vt)
+            new_tools.append(tool)
 
-    for name, t in incoming_by_name.items():
-        if name not in seen and all((x.tool.tool_name != name) for x in new_tools):
-            new_tools.append(AgentVersionedTool(version=0, tool=t))
-            changed = True
+    for name, t in incoming_tools_by_name.items():
+        if name not in seen_tools:
+            new_tools.append(t)
+            tools_changed = True
 
     data_model.tools = new_tools
 
-    if changed:
+    # --- Process evaluators with schema compatibility check ---
+    incoming_evals_by_name: dict[str, EvaluatorSchema] = {
+        e.name: e for e in request.evaluators
+    }
+    existing_evals_by_name: dict[str, EvaluatorSchema] = {
+        ev.name: ev for ev in (data_model.evaluators or [])
+    }
+    new_evaluators: list[EvaluatorSchema] = []
+
+    # Check existing evaluators for compatibility
+    for name, existing_ev in existing_evals_by_name.items():
+        if name in incoming_evals_by_name:
+            incoming_ev = incoming_evals_by_name[name]
+            old_schema = existing_ev.config_schema
+            new_schema = incoming_ev.config_schema
+
+            # Check compatibility
+            is_compatible, compat_errors = check_schema_compatibility(old_schema, new_schema)
+            if not is_compatible:
+                raise HTTPException(
+                    status_code=409,
+                    detail=format_compatibility_error(name, compat_errors),
+                )
+
+            # Schema is compatible - update if changed
+            if existing_ev.model_dump(mode="json") != incoming_ev.model_dump(mode="json"):
+                evaluators_changed = True
+            new_evaluators.append(incoming_ev)
+        else:
+            # Keep existing evaluator not in incoming request
+            new_evaluators.append(existing_ev)
+
+    # Add new evaluators
+    for name, ev in incoming_evals_by_name.items():
+        if name not in existing_evals_by_name:
+            new_evaluators.append(ev)
+            evaluators_changed = True
+
+    data_model.evaluators = new_evaluators
+
+    if tools_changed or evaluators_changed or metadata_changed or force_write:
         # Regenerate schema when tools change
-        tools_dict = [vt.tool.model_dump(mode="json") for vt in new_tools]
-        agent_schema = generate_agent_schema(tools_dict)
+        if tools_changed:
+            tools_dict = [tool.model_dump(mode="json") for tool in new_tools]
+            agent_schema = generate_agent_schema(tools_dict)
 
-        # Validate generated schema
-        is_valid, errors = validate_agent_schema(agent_schema)
-        if not is_valid:
-            _logger.warning(
-                f"Generated schema validation failed for agent "
-                f"'{request.agent.agent_name}': {errors}"
-            )
+            # Validate generated schema
+            is_valid, errors = validate_agent_schema(agent_schema)
+            if not is_valid:
+                _logger.warning(
+                    f"Generated schema validation failed for agent "
+                    f"'{request.agent.agent_name}': {errors}"
+                )
+            data_model.agent_schema = agent_schema
 
-        # Update the data model with new schema
-        data_model.agent_schema = agent_schema
         existing.data = data_model.model_dump(mode="json")
 
         try:
             await db.commit()
             _logger.info(
-                f"Updated agent '{request.agent.agent_name}' with {len(new_tools)} tools "
-                f"and regenerated schema"
+                f"Updated agent '{request.agent.agent_name}' with {len(new_tools)} tools, "
+                f"{len(new_evaluators)} evaluators"
             )
         except Exception:
             await db.rollback()
@@ -242,8 +403,8 @@ async def get_agent(agent_id: UUID, db: AsyncSession = Depends(get_async_db)) ->
 
     try:
         tools_by_name: dict[str, AgentTool] = {}
-        for vt in data_model.tools or []:
-            tools_by_name[vt.tool.tool_name] = vt.tool
+        for tool in data_model.tools or []:
+            tools_by_name[tool.tool_name] = tool
         latest_tools: list[AgentTool] = list(tools_by_name.values())
         agent_meta = APIAgent.model_validate(data_model.agent_metadata)
     except ValidationError:
@@ -299,6 +460,17 @@ async def set_agent_policy(
     if policy is None:
         raise HTTPException(
             status_code=404, detail=f"Policy with ID '{policy_id}' not found"
+        )
+
+    # Validate controls can run on this agent
+    errors = await _validate_policy_controls_for_agent(agent, policy_id, db)
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Policy contains controls incompatible with this agent",
+                "errors": errors,
+            },
         )
 
     # Store old policy ID if exists
@@ -516,7 +688,7 @@ async def get_agent_schema(
             if data_model.tools:
                 # Generate schema from existing tools for backward compatibility
                 _logger.info(f"Generating schema for legacy agent '{agent.name}'")
-                tools_dict = [vt.tool.model_dump(mode="json") for vt in data_model.tools]
+                tools_dict = [tool.model_dump(mode="json") for tool in data_model.tools]
                 schema = generate_agent_schema(tools_dict)
 
                 # Optionally persist it for next time
@@ -537,3 +709,286 @@ async def get_agent_schema(
 
     # Cast to satisfy mypy since we know schema is dict[str, Any] at this point
     return dict(schema)
+
+
+# =============================================================================
+# Evaluator Schema Endpoints
+# =============================================================================
+
+
+class EvaluatorSchemaItem(BaseModel):
+    """Evaluator schema summary for list response."""
+
+    name: str
+    description: str | None
+    config_schema: dict[str, Any]
+
+
+class PaginationInfo(BaseModel):
+    """Pagination metadata."""
+
+    offset: int
+    limit: int
+    total: int
+
+
+class ListEvaluatorsResponse(BaseModel):
+    """Response for listing agent's evaluator schemas."""
+
+    evaluators: list[EvaluatorSchemaItem]
+    pagination: PaginationInfo
+
+
+@router.get(
+    "/{agent_id}/evaluators",
+    response_model=ListEvaluatorsResponse,
+    summary="List agent's registered evaluator schemas",
+    response_description="Evaluator schemas registered with this agent",
+)
+async def list_agent_evaluators(
+    agent_id: UUID,
+    offset: int = 0,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_async_db),
+) -> ListEvaluatorsResponse:
+    """
+    List all evaluator schemas registered with an agent.
+
+    Evaluator schemas are registered via initAgent and used for:
+    - Config validation when creating Controls
+    - UI to display available config options
+
+    Args:
+        agent_id: UUID of the agent
+        offset: Pagination offset (default 0)
+        limit: Pagination limit (default 20, max 100)
+        db: Database session (injected)
+
+    Returns:
+        ListEvaluatorsResponse with evaluator schemas and pagination
+
+    Raises:
+        HTTPException 404: Agent not found
+    """
+    # Clamp limit
+    limit = min(max(1, limit), 100)
+
+    result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
+    agent: Agent | None = result.scalars().first()
+    if agent is None:
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        )
+
+    try:
+        data_model = AgentData.model_validate(agent.data)
+    except ValidationError:
+        data_model = AgentData(agent_metadata={}, tools=[], evaluators=[])
+
+    all_evaluators = data_model.evaluators or []
+    total = len(all_evaluators)
+
+    # Apply pagination
+    paginated = all_evaluators[offset : offset + limit]
+
+    return ListEvaluatorsResponse(
+        evaluators=[
+            EvaluatorSchemaItem(
+                name=ev.name,
+                description=ev.description,
+                config_schema=ev.config_schema,
+            )
+            for ev in paginated
+        ],
+        pagination=PaginationInfo(offset=offset, limit=limit, total=total),
+    )
+
+
+@router.get(
+    "/{agent_id}/evaluators/{evaluator_name}",
+    response_model=EvaluatorSchemaItem,
+    summary="Get specific evaluator schema",
+    response_description="Evaluator schema details",
+)
+async def get_agent_evaluator(
+    agent_id: UUID,
+    evaluator_name: str,
+    db: AsyncSession = Depends(get_async_db),
+) -> EvaluatorSchemaItem:
+    """
+    Get a specific evaluator schema registered with an agent.
+
+    Args:
+        agent_id: UUID of the agent
+        evaluator_name: Name of the evaluator
+        db: Database session (injected)
+
+    Returns:
+        EvaluatorSchemaItem with schema details
+
+    Raises:
+        HTTPException 404: Agent or evaluator not found
+    """
+    result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
+    agent: Agent | None = result.scalars().first()
+    if agent is None:
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        )
+
+    try:
+        data_model = AgentData.model_validate(agent.data)
+    except ValidationError:
+        raise HTTPException(
+            status_code=404, detail=f"Evaluator '{evaluator_name}' not found"
+        )
+
+    for ev in data_model.evaluators or []:
+        if ev.name == evaluator_name:
+            return EvaluatorSchemaItem(
+                name=ev.name,
+                description=ev.description,
+                config_schema=ev.config_schema,
+            )
+
+    raise HTTPException(
+        status_code=404, detail=f"Evaluator '{evaluator_name}' not found"
+    )
+
+
+@router.patch(
+    "/{agent_id}",
+    response_model=PatchAgentResponse,
+    summary="Modify agent (remove tools/evaluators)",
+    response_description="Lists of removed items",
+)
+async def patch_agent(
+    agent_id: UUID,
+    request: PatchAgentRequest,
+    db: AsyncSession = Depends(get_async_db),
+) -> PatchAgentResponse:
+    """
+    Remove tools and/or evaluators from an agent.
+
+    This is the complement to initAgent which only adds items.
+    Removals are idempotent - attempting to remove non-existent items is not an error.
+
+    Args:
+        agent_id: UUID of the agent
+        request: Lists of tool/evaluator names to remove
+        db: Database session (injected)
+
+    Returns:
+        PatchAgentResponse with lists of actually removed items
+
+    Raises:
+        HTTPException 404: Agent not found
+        HTTPException 500: Database error during update
+    """
+    result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
+    agent: Agent | None = result.scalars().first()
+    if agent is None:
+        raise HTTPException(
+            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        )
+
+    try:
+        data_model = AgentData.model_validate(agent.data)
+    except ValidationError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Agent '{agent.name}' has corrupted data",
+        )
+
+    tools_removed: list[str] = []
+    evaluators_removed: list[str] = []
+
+    # Remove tools
+    if request.remove_tools:
+        remove_set = set(request.remove_tools)
+        new_tools = []
+        for tool in data_model.tools or []:
+            if tool.tool_name in remove_set:
+                tools_removed.append(tool.tool_name)
+            else:
+                new_tools.append(tool)
+        data_model.tools = new_tools
+
+    # Remove evaluators (with dependency check)
+    if request.remove_evaluators:
+        remove_set = set(request.remove_evaluators)
+
+        # Check if any controls reference evaluators being removed
+        if agent.policy_id is not None:
+            # Get all controls for this agent's policy
+            controls = await list_controls_for_agent(agent.agent_uuid, db)
+            referencing_controls: list[tuple[str, str]] = []  # (control_name, evaluator)
+
+            for ctrl in controls:
+                ctrl_data = ctrl.control or {}
+                evaluator_ref = ctrl_data.get("evaluator", {}).get("plugin", "")
+                if ":" in evaluator_ref:
+                    ref_agent, ref_eval = evaluator_ref.split(":", 1)
+                    # Check if this control references an evaluator we're removing
+                    # AND it's scoped to this agent (by name match)
+                    if ref_agent == agent.name and ref_eval in remove_set:
+                        referencing_controls.append((ctrl.name, ref_eval))
+
+            if referencing_controls:
+                refs_str = ", ".join(
+                    f"'{ctrl}' uses '{ev}'" for ctrl, ev in referencing_controls
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Cannot remove evaluators: active controls reference them. "
+                        f"Remove or update these controls first: {refs_str}"
+                    ),
+                )
+
+        new_evaluators = []
+        for ev in data_model.evaluators or []:
+            if ev.name in remove_set:
+                evaluators_removed.append(ev.name)
+            else:
+                new_evaluators.append(ev)
+        data_model.evaluators = new_evaluators
+
+    # Only update if something changed
+    if tools_removed or evaluators_removed:
+        # Regenerate agent_schema if tools were removed
+        if tools_removed:
+            tools_dict = [tool.model_dump(mode="json") for tool in data_model.tools]
+            agent_schema = generate_agent_schema(tools_dict)
+
+            is_valid, errors = validate_agent_schema(agent_schema)
+            if not is_valid:
+                _logger.warning(
+                    f"Generated schema validation failed after PATCH for agent "
+                    f"'{agent.name}': {errors}"
+                )
+
+            data_model.agent_schema = agent_schema
+
+        agent.data = data_model.model_dump(mode="json")
+        try:
+            await db.commit()
+            _logger.info(
+                f"Patched agent '{agent.name}': removed {len(tools_removed)} tools, "
+                f"{len(evaluators_removed)} evaluators"
+            )
+        except Exception:
+            await db.rollback()
+            _logger.error(
+                f"Failed to patch agent '{agent.name}' ({agent_id})",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update agent '{agent.name}': database error",
+            )
+
+    return PatchAgentResponse(
+        tools_removed=tools_removed,
+        evaluators_removed=evaluators_removed,
+    )

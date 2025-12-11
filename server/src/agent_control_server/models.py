@@ -4,6 +4,8 @@ from typing import Any, Optional
 
 from agent_control_models.agent import AgentTool
 from agent_control_models.base import BaseModel
+from agent_control_models.server import EvaluatorSchema
+from pydantic import Field
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -12,13 +14,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
 
-class AgentVersionedTool(BaseModel):
-    version: int
-    tool: AgentTool
-
 class AgentData(BaseModel):
+    """Agent metadata stored in JSONB."""
+
     agent_metadata: dict[str, Any]
-    tools: list[AgentVersionedTool]
+    tools: list[AgentTool] = Field(default_factory=list)
+    evaluators: list[EvaluatorSchema] = Field(default_factory=list)
     # Renamed to agent_schema to avoid Pydantic BaseModel.schema() conflict
     agent_schema: dict[str, Any] | None = None
 
@@ -97,5 +98,6 @@ class Agent(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(), server_default=text("CURRENT_TIMESTAMP"), nullable=False, index=True
     )
+
 
 

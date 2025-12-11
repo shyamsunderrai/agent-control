@@ -85,6 +85,53 @@ def test_init_agent_idempotent_same_tools(client: TestClient) -> None:
     assert r2.json()["created"] is False
 
 
+def test_init_agent_updates_metadata_on_reinit(client: TestClient) -> None:
+    """Test that agent metadata is refreshed on re-registration.
+
+    Given: An existing agent with initial metadata
+    When: Re-initializing with updated description/version
+    Then: The new metadata is persisted
+    """
+    # Given: create initial agent
+    agent_id = str(uuid.uuid4())
+    initial_payload = {
+        "agent": {
+            "agent_id": agent_id,
+            "agent_name": "MetadataTestAgent",
+            "agent_description": "Original description",
+            "agent_version": "1.0.0",
+            "agent_metadata": {"env": "dev"},
+        },
+        "tools": [],
+    }
+    r1 = client.post("/api/v1/agents/initAgent", json=initial_payload)
+    assert r1.status_code == 200
+    assert r1.json()["created"] is True
+
+    # When: re-init with updated metadata
+    updated_payload = {
+        "agent": {
+            "agent_id": agent_id,
+            "agent_name": "MetadataTestAgent",
+            "agent_description": "Updated description",
+            "agent_version": "2.0.0",
+            "agent_metadata": {"env": "prod", "new_field": "value"},
+        },
+        "tools": [],
+    }
+    r2 = client.post("/api/v1/agents/initAgent", json=updated_payload)
+    assert r2.status_code == 200
+    assert r2.json()["created"] is False
+
+    # Then: verify metadata is updated
+    get_resp = client.get(f"/api/v1/agents/{agent_id}")
+    assert get_resp.status_code == 200
+    agent_data = get_resp.json()["agent"]
+    assert agent_data["agent_description"] == "Updated description"
+    assert agent_data["agent_version"] == "2.0.0"
+    assert agent_data["agent_metadata"] == {"env": "prod", "new_field": "value"}
+
+
 def test_init_agent_adds_new_tool(client: TestClient) -> None:
     # Given: an agent id and base payload
     agent_id = str(uuid.uuid4())
@@ -143,9 +190,9 @@ def test_init_agent_overwrites_tool_on_signature_change(client: TestClient) -> N
         row = conn.execute(text("SELECT data FROM agents WHERE agent_uuid = :id"), {"id": agent_id}).first()
         assert row is not None
         tools = row[0].get("tools", [])
-        tool_a_entries = [t for t in tools if t.get("tool", {}).get("tool_name") == "tool_a"]
+        tool_a_entries = [t for t in tools if t.get("tool_name") == "tool_a"]
         assert len(tool_a_entries) == 1
-        assert tool_a_entries[0]["tool"]["arguments"] == {"a": "str"}
+        assert tool_a_entries[0]["arguments"] == {"a": "str"}
 
 
 def test_get_agent_not_found(client: TestClient) -> None:
@@ -171,12 +218,15 @@ def test_init_agent_logs_warning_on_bad_existing_data(client: TestClient, caplog
         agent.data = {"foo": "bar"}
         session.commit()
 
-    # When: re-initializing with the same payload
+    # When: re-initializing with the same payload (without force_replace)
     logger_name = "agent_control_server.endpoints.agents"
-    with caplog.at_level(logging.WARNING, logger=logger_name):
+    with caplog.at_level(logging.ERROR, logger=logger_name):
         r2 = client.post("/api/v1/agents/initAgent", json=payload)
-        assert r2.status_code == 200
-        # Then: a warning is logged about parse failure
+        # Then: a 422 error is returned
+        assert r2.status_code == 422
+        assert "corrupted data" in r2.json()["detail"]
+        assert "force_replace=true" in r2.json()["detail"]
+        # Then: an error is logged about parse failure
         messages = [rec.getMessage() for rec in caplog.records]
         assert any("Failed to parse existing agent data" in m for m in messages)
 

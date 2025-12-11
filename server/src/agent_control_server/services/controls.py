@@ -10,6 +10,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Agent, Control, ControlSet, Policy, control_set_controls, policy_control_sets
 
 
+async def list_controls_for_policy(policy_id: int, db: AsyncSession) -> list[Control]:
+    """Return DB Control objects for all controls in a policy's control sets."""
+    stmt = (
+        select(Control)
+        .join(control_set_controls, Control.id == control_set_controls.c.control_id)
+        .join(ControlSet, control_set_controls.c.control_set_id == ControlSet.id)
+        .join(policy_control_sets, ControlSet.id == policy_control_sets.c.control_set_id)
+        .where(policy_control_sets.c.policy_id == policy_id)
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().unique().all())
+
+
 async def list_controls_for_agent(agent_id: UUID, db: AsyncSession) -> list[APIControl]:
     """Return API Control models for all controls associated with the agent's policy.
 

@@ -10,6 +10,15 @@
 [tool.uv.workspace]
 members = ["models", "server", "sdks/python", "engine", "plugins"]
 
+[tool.uv]
+# Require resolution to be compatible with the following environments so that CI and local dev
+# pick versions with wheels available across platforms (fixes ruff wheel mismatch on Linux x86_64).
+required-environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'darwin' and platform_machine == 'x86_64'",
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
 [tool.uv.sources]
 agent-control-models = { workspace = true }
 agent-control-engine = { workspace = true }

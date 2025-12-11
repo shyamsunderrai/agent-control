@@ -1,16 +1,17 @@
-
 """Agent Control Models - Shared data models for server and SDK."""
+
 __version__ = "0.1.0"
 
 from .agent import Agent, AgentContext, AgentTool, LlmCall, ToolCall
 from .controls import (
     ControlAction,
     ControlDefinition,
-    ControlEvaluator,
     ControlMatch,
     ControlSelector,
-    Evaluator,
+    EvaluatorConfig,
     EvaluatorResult,
+    ListConfig,
+    RegexConfig,
 )
 from .evaluation import (
     EvaluationRequest,
@@ -18,25 +19,50 @@ from .evaluation import (
     EvaluationResult,
 )
 from .health import HealthResponse
+from .plugin import (
+    PluginEvaluator,
+    PluginMetadata,
+    clear_plugins,
+    get_plugin,
+    list_plugins,
+    register_plugin,
+)
 from .policy import Policy
+from .server import EvaluatorSchema
 
 __all__ = [
+    # Health
     "HealthResponse",
+    # Agent
     "Agent",
     "AgentTool",
     "AgentContext",
     "LlmCall",
+    "ToolCall",
+    # Policy
     "Policy",
+    # Evaluation
     "EvaluationRequest",
     "EvaluationResponse",
     "EvaluationResult",
-    "ToolCall",
-    "Evaluator",
-    "EvaluatorResult",
+    # Controls
     "ControlDefinition",
     "ControlAction",
-    "ControlEvaluator",
     "ControlMatch",
     "ControlSelector",
+    "EvaluatorConfig",
+    "EvaluatorResult",
+    # Plugin configs
+    "RegexConfig",
+    "ListConfig",
+    # Plugin system
+    "PluginEvaluator",
+    "PluginMetadata",
+    "register_plugin",
+    "get_plugin",
+    "list_plugins",
+    "clear_plugins",
+    # Server models
+    "EvaluatorSchema",
 ]
 

@@ -87,6 +87,7 @@ class EvaluationResponse(BaseModel):
         confidence: Confidence score between 0.0 and 1.0
         reason: Optional explanation for the decision
         matches: List of control matches detected (if any)
+        errors: List of control matches that failed during evaluation (if any)
     """
 
     is_safe: bool = Field(..., description="Whether content is safe")
@@ -103,6 +104,10 @@ class EvaluationResponse(BaseModel):
     matches: list[ControlMatch] | None = Field(
         default=None,
         description="List of control matches detected (if any)",
+    )
+    errors: list[ControlMatch] | None = Field(
+        default=None,
+        description="List of controls that failed during evaluation (if any)",
     )
 
 

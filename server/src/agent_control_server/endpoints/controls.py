@@ -1,4 +1,4 @@
-
+from agent_control_models import get_plugin
 from agent_control_models.server import (
     CreateControlRequest,
     CreateControlResponse,
@@ -7,12 +7,14 @@ from agent_control_models.server import (
     SetControlDataResponse,
 )
 from fastapi import APIRouter, Depends, HTTPException
+from jsonschema_rs import ValidationError as JSONSchemaValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
 from ..logging_utils import get_logger
-from ..models import Control
+from ..models import Agent, AgentData, Control
+from ..services.evaluator_utils import parse_evaluator_ref, validate_config_against_schema
 
 router = APIRouter(prefix="/controls", tags=["controls"])
 
@@ -139,6 +141,73 @@ async def set_control_data(
         raise HTTPException(
             status_code=404, detail=f"Control with ID '{control_id}' not found"
         )
+
+    # Validate evaluator config
+    plugin_ref = request.data.evaluator.plugin
+    agent_name, eval_name = parse_evaluator_ref(plugin_ref)
+
+    if agent_name is not None:
+        # Agent-scoped evaluator: validate against agent's registered schema
+        agent_result = await db.execute(
+            select(Agent).where(Agent.name == agent_name)
+        )
+        agent = agent_result.scalars().first()
+        if agent is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Agent '{agent_name}' not found. "
+                f"Ensure the agent exists before creating controls that reference its evaluators.",
+            )
+
+        try:
+            agent_data = AgentData.model_validate(agent.data)
+        except Exception:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Agent '{agent_name}' has corrupted data.",
+            )
+
+        evaluator = next(
+            (e for e in (agent_data.evaluators or []) if e.name == eval_name),
+            None,
+        )
+        if evaluator is None:
+            available = [e.name for e in (agent_data.evaluators or [])]
+            raise HTTPException(
+                status_code=422,
+                detail=f"Evaluator '{eval_name}' is not registered with agent '{agent_name}'. "
+                f"Available evaluators: {available or 'none'}. "
+                f"Register it via initAgent first.",
+            )
+
+        # Validate config against evaluator's schema
+        if evaluator.config_schema:
+            try:
+                validate_config_against_schema(
+                    request.data.evaluator.config, evaluator.config_schema
+                )
+            except JSONSchemaValidationError as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Config validation failed for evaluator "
+                        f"'{agent_name}:{eval_name}': {e.message}"
+                    ),
+                )
+    else:
+        # Built-in or server-side plugin: validate if registered
+        plugin_cls = get_plugin(eval_name)
+        if plugin_cls is not None:
+            try:
+                plugin_cls.config_model(**request.data.evaluator.config)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Config validation failed for plugin '{eval_name}': {e}",
+                )
+        # If plugin not found, allow it - might be a server-side registered plugin
+        # that will be validated at runtime
+
     control.data = request.data.model_dump(mode="json")
     try:
         await db.commit()

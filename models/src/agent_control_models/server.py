@@ -8,6 +8,21 @@ from .controls import ControlDefinition
 from .policy import Control
 
 
+class EvaluatorSchema(BaseModel):
+    """Schema for a custom evaluator registered with an agent.
+
+    Custom evaluators are PluginEvaluator classes deployed with the engine.
+    This schema is registered via initAgent for validation and UI purposes.
+    """
+
+    name: str = Field(..., min_length=1, max_length=255, description="Unique evaluator name")
+    config_schema: dict[str, Any] = Field(
+        default_factory=dict,
+        description="JSON Schema for evaluator config validation",
+    )
+    description: str | None = Field(None, max_length=1000, description="Optional description")
+
+
 class CreatePolicyRequest(BaseModel):
     name: str = Field(description="Unique policy name")
 
@@ -22,11 +37,21 @@ class CreateControlRequest(BaseModel):
 
 class InitAgentRequest(BaseModel):
     """Request to initialize or update an agent registration."""
-    agent: Agent = Field(
-        ..., description="Agent metadata including ID, name, and version"
-    )
+
+    agent: Agent = Field(..., description="Agent metadata including ID, name, and version")
     tools: list[AgentTool] = Field(
         default_factory=list, description="List of tools available to the agent"
+    )
+    evaluators: list[EvaluatorSchema] = Field(
+        default_factory=list,
+        description="Custom evaluator schemas for config validation",
+    )
+    force_replace: bool = Field(
+        default=False,
+        description=(
+            "If true, replace corrupted agent data instead of failing. "
+            "Use only when agent data is corrupted and cannot be parsed."
+        ),
     )
 
     model_config = {
@@ -37,15 +62,25 @@ class InitAgentRequest(BaseModel):
                         "agent_id": "550e8400-e29b-41d4-a716-446655440000",
                         "agent_name": "customer-service-bot",
                         "agent_description": "Handles customer inquiries",
-                        "agent_version": "1.0.0"
+                        "agent_version": "1.0.0",
                     },
                     "tools": [
                         {
                             "tool_name": "search_kb",
                             "arguments": {"query": {"type": "string"}},
-                            "output_schema": {"results": {"type": "array"}}
+                            "output_schema": {"results": {"type": "array"}},
                         }
-                    ]
+                    ],
+                    "evaluators": [
+                        {
+                            "name": "pii-detector",
+                            "config_schema": {
+                                "type": "object",
+                                "properties": {"sensitivity": {"type": "string"}},
+                            },
+                            "description": "Detects PII in text",
+                        }
+                    ],
                 }
             ]
         }
@@ -131,3 +166,25 @@ class SetControlDataRequest(BaseModel):
 
 class SetControlDataResponse(BaseModel):
     success: bool = Field(description="Whether the control data was updated")
+
+
+class PatchAgentRequest(BaseModel):
+    """Request to modify an agent (remove tools/evaluators)."""
+
+    remove_tools: list[str] = Field(
+        default_factory=list, description="Tool names to remove from the agent"
+    )
+    remove_evaluators: list[str] = Field(
+        default_factory=list, description="Evaluator names to remove from the agent"
+    )
+
+
+class PatchAgentResponse(BaseModel):
+    """Response from agent modification."""
+
+    tools_removed: list[str] = Field(
+        default_factory=list, description="Tool names that were removed"
+    )
+    evaluators_removed: list[str] = Field(
+        default_factory=list, description="Evaluator names that were removed"
+    )

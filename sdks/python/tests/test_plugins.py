@@ -11,6 +11,8 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 
+from pydantic import BaseModel
+
 from agent_control.plugins import (
     PluginEvaluator,
     PluginMetadata,
@@ -19,6 +21,11 @@ from agent_control.plugins import (
     register_plugin,
 )
 from agent_control_models.controls import EvaluatorResult
+
+
+class MockConfig(BaseModel):
+    """Config model for MockPlugin."""
+    threshold: float = 0.5
 
 
 class MockPlugin(PluginEvaluator):
@@ -33,11 +40,8 @@ class MockPlugin(PluginEvaluator):
         description="Mock plugin for testing",
         requires_api_key=False,
         timeout_ms=10,
-        config_schema={
-            "type": "object",
-            "properties": {"threshold": {"type": "number"}},
-        },
     )
+    config_model = MockConfig
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -70,24 +74,19 @@ class TestPluginMetadata:
         assert metadata.description == "Test plugin"
         assert metadata.requires_api_key is False
         assert metadata.timeout_ms == 10000  # Default
-        assert metadata.config_schema is None
 
     def test_metadata_with_all_fields(self):
         """Test metadata with all fields populated."""
-        schema = {"type": "object", "properties": {}}
-
         metadata = PluginMetadata(
             name="full-plugin",
             version="2.0.0",
             description="Full test",
             requires_api_key=True,
             timeout_ms=5000,
-            config_schema=schema,
         )
 
         assert metadata.requires_api_key is True
         assert metadata.timeout_ms == 5000
-        assert metadata.config_schema == schema
 
 
 class TestPluginRegistry:

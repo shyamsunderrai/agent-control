@@ -62,7 +62,7 @@ def list_plugins() -> dict[str, dict[str, Any]]:
             "description": plugin_class.metadata.description,
             "requires_api_key": plugin_class.metadata.requires_api_key,
             "timeout_ms": plugin_class.metadata.timeout_ms,
-            "config_schema": plugin_class.metadata.config_schema,
+            "config_schema": plugin_class.config_model.model_json_schema(),
         }
         for name, plugin_class in _PLUGIN_REGISTRY.items()
     }

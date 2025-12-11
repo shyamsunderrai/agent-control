@@ -245,10 +245,15 @@ def test_set_agent_policy_rollback_on_failure(
                 existing_policy
             )
 
+            # Mock the controls query (for validation - returns empty list)
+            mock_controls_result = MagicMock()
+            mock_controls_result.scalars.return_value.unique.return_value.all.return_value = []
+
             # Return different results for different queries
             mock_session.execute = AsyncMock(side_effect=[
                 mock_agent_result,
                 mock_policy_result,
+                mock_controls_result,
             ])
             yield mock_session
 
@@ -380,7 +385,7 @@ def test_set_control_data_rollback_on_failure(
                 "applies_to": "llm_call",
                 "check_stage": "pre",
                 "selector": {"path": "input"},
-                "evaluator": {"type": "regex", "config": {"pattern": "x"}},
+                "evaluator": {"plugin": "regex", "config": {"pattern": "x"}},
                 "action": {"decision": "deny"}
             }
             resp = client.put(
