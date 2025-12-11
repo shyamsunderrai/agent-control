@@ -139,6 +139,28 @@ Rules are defined via the API (or DB directly) using a JSON structure that match
 }
 ```
 
+#### Agent-scoped custom evaluators
+
+To reference an agent's custom evaluator in a control, use `{agent_name}:{evaluator_name}` in the `plugin` field.
+
+- Built-in plugins: `"plugin": "regex"`, `"plugin": "list"`
+- Agent-scoped plugin: `"plugin": "my-agent:pii-detector"`
+
+Example:
+```json
+{
+  "description": "PII check via custom agent evaluator",
+  "applies_to": "llm_call",
+  "check_stage": "post",
+  "selector": { "path": "output" },
+  "evaluator": {
+    "plugin": "my-agent:pii-detector",
+    "config": { "sensitivity": "high", "types": ["ssn", "email"] }
+  },
+  "action": { "decision": "deny" }
+}
+```
+
 ### 2. Using the SDK
 
 Install the SDK in your agent's environment (currently via local path or built wheel).
