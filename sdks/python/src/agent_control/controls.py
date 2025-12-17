@@ -2,6 +2,14 @@
 
 from typing import Any, cast
 
+# Import models if available
+try:
+    from agent_control_models import ControlDefinition
+    MODELS_AVAILABLE = True
+except ImportError:
+    MODELS_AVAILABLE = False
+    ControlDefinition = Any # type: ignore
+
 from .client import AgentControlClient
 
 
@@ -37,6 +45,43 @@ async def create_control(
     response = await client.http_client.put(
         "/api/v1/controls",
         json={"name": name}
+    )
+    response.raise_for_status()
+    return cast(dict[str, Any], response.json())
+
+
+async def set_control_data(
+    client: AgentControlClient,
+    control_id: int,
+    data: dict[str, Any] | ControlDefinition
+) -> dict[str, Any]:
+    """
+    Set the configuration data for a control.
+
+    This defines what the control actually does (selector, evaluator, action).
+
+    Args:
+        client: AgentControlClient instance
+        control_id: ID of the control
+        data: Control definition dictionary or Pydantic model
+
+    Returns:
+        Dictionary containing success flag
+
+    Raises:
+        httpx.HTTPError: If request fails
+        HTTPException 422: If data doesn't match schema
+    """
+    if MODELS_AVAILABLE and isinstance(data, ControlDefinition):
+        # Convert model to dict, excluding None to keep payload clean
+        payload: dict[str, Any] = data.model_dump(mode="json", exclude_none=True)
+    else:
+        # We assume it's a dict if it's not a model
+        payload = cast(dict[str, Any], data)
+
+    response = await client.http_client.put(
+        f"/api/v1/controls/{control_id}/data",
+        json={"data": payload}
     )
     response.raise_for_status()
     return cast(dict[str, Any], response.json())

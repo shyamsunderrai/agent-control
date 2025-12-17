@@ -50,8 +50,12 @@ from .evaluation import check_evaluation_with_local
 try:
     from agent_control_models import (
         Agent,
+        ControlAction,
+        ControlDefinition,
+        ControlSelector,
         EvaluationRequest,
         EvaluationResult,
+        EvaluatorConfig,
         LlmCall,
         ToolCall,
     )
@@ -59,6 +63,18 @@ try:
 except ImportError:
     MODELS_AVAILABLE = False
     if not TYPE_CHECKING:
+        class ControlDefinition:
+            pass
+
+        class ControlSelector:
+            pass
+
+        class ControlAction:
+            pass
+
+        class EvaluatorConfig:
+            pass
+
         class Agent:  # runtime fallback
             def __init__(
                 self,
@@ -416,6 +432,10 @@ __all__ = [
     "ToolCall",
     "EvaluationRequest",
     "EvaluationResult",
+    "ControlDefinition",
+    "ControlSelector",
+    "ControlAction",
+    "EvaluatorConfig",
 ]
 
 __version__ = "0.1.0"

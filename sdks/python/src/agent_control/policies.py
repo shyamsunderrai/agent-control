@@ -147,3 +147,32 @@ async def list_policy_control_sets(
     response.raise_for_status()
     return cast(dict[str, Any], response.json())
 
+
+async def assign_policy_to_agent(
+    client: AgentControlClient,
+    agent_id: str,
+    policy_id: int
+) -> dict[str, Any]:
+    """
+    Assign a policy to an agent.
+
+    This makes the policy active for the agent. Any existing policy assignment is replaced.
+
+    Args:
+        client: AgentControlClient instance
+        agent_id: UUID or string identifier of the agent
+        policy_id: ID of the policy to assign
+
+    Returns:
+        Dictionary containing success flag/details
+
+    Raises:
+        httpx.HTTPError: If request fails
+        HTTPException 404: Agent or policy not found
+    """
+    response = await client.http_client.post(
+        f"/api/v1/agents/{agent_id}/policy/{policy_id}"
+    )
+    response.raise_for_status()
+    return cast(dict[str, Any], response.json())
+
