@@ -30,10 +30,11 @@ def test_validation_invalid_logic_enum(client: TestClient):
     # Then: 422 Unprocessable Entity
     assert resp.status_code == 422
     
-    # Verify error message mentions the field
-    errors = resp.json()["detail"]
-    assert any("logic" in str(e["loc"]) for e in errors)
-    assert any("any" in e["msg"] or "all" in e["msg"] for e in errors)
+    # Verify error message mentions the field (RFC 7807 format)
+    response_data = resp.json()
+    errors = response_data.get("errors", [])
+    assert any("logic" in str(e.get("field", "")) for e in errors)
+    assert any("any" in e.get("message", "") or "all" in e.get("message", "") for e in errors)
 
 
 def test_validation_discriminator_mismatch(client: TestClient):
@@ -56,11 +57,12 @@ def test_validation_discriminator_mismatch(client: TestClient):
     # Then: 422 Unprocessable Entity
     assert resp.status_code == 422
     
-    # Verify error mentions missing required field for ListConfig
-    errors = resp.json()["detail"]
+    # Verify error mentions missing required field for ListConfig (RFC 7807 format)
+    response_data = resp.json()
+    errors = response_data.get("errors", [])
     # Expecting 'values' field missing
-    assert any("values" in str(e["loc"]) for e in errors)
-    assert any("Field required" in e["msg"] for e in errors)
+    assert any("values" in str(e.get("field", "")) for e in errors)
+    assert any("Field required" in e.get("message", "") for e in errors)
 
 
 def test_validation_regex_flags_list(client: TestClient):
@@ -80,10 +82,11 @@ def test_validation_regex_flags_list(client: TestClient):
     # When: Setting control data
     resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
     
-    # Then: 422
+    # Then: 422 (RFC 7807 format)
     assert resp.status_code == 422
-    errors = resp.json()["detail"]
-    assert any("flags" in str(e["loc"]) for e in errors)
+    response_data = resp.json()
+    errors = response_data.get("errors", [])
+    assert any("flags" in str(e.get("field", "")) for e in errors)
 
 
 def test_validation_invalid_regex_pattern(client: TestClient):
@@ -103,13 +106,14 @@ def test_validation_invalid_regex_pattern(client: TestClient):
     # When: Setting control data
     resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
     
-    # Then: 422 Unprocessable Entity
+    # Then: 422 Unprocessable Entity (RFC 7807 format)
     assert resp.status_code == 422
     
-    errors = resp.json()["detail"]
+    response_data = resp.json()
+    errors = response_data.get("errors", [])
     # Verify error message mentions regex compilation failure
-    assert any("pattern" in str(e["loc"]) for e in errors)
-    assert any("Invalid regex pattern" in e["msg"] for e in errors)
+    assert any("pattern" in str(e.get("field", "")) for e in errors)
+    assert any("Invalid regex pattern" in e.get("message", "") for e in errors)
 
 
 def test_validation_empty_string_path_rejected(client: TestClient):
@@ -123,13 +127,14 @@ def test_validation_empty_string_path_rejected(client: TestClient):
     # When: Setting control data
     resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
 
-    # Then: 422 Unprocessable Entity
+    # Then: 422 Unprocessable Entity (RFC 7807 format)
     assert resp.status_code == 422
 
     # Verify error message mentions path
-    errors = resp.json()["detail"]
-    assert any("path" in str(e["loc"]).lower() for e in errors)
-    assert any("empty string" in e["msg"] for e in errors)
+    response_data = resp.json()
+    errors = response_data.get("errors", [])
+    assert any("path" in str(e.get("field", "")).lower() for e in errors)
+    assert any("empty string" in e.get("message", "") for e in errors)
 
 
 def test_validation_none_path_defaults_to_star(client: TestClient):
@@ -191,10 +196,11 @@ def test_validation_empty_tool_names_rejected(client: TestClient):
     # When: Setting control data
     resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
 
-    # Then: 422 Unprocessable Entity
+    # Then: 422 Unprocessable Entity (RFC 7807 format)
     assert resp.status_code == 422
 
     # Verify error message mentions tool_names
-    errors = resp.json()["detail"]
-    assert any("tool_names" in str(e["loc"]) for e in errors)
-    assert any("empty list" in e["msg"] for e in errors)
+    response_data = resp.json()
+    errors = response_data.get("errors", [])
+    assert any("tool_names" in str(e.get("field", "")) for e in errors)
+    assert any("empty list" in e.get("message", "") for e in errors)

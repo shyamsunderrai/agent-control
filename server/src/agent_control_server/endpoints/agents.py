@@ -4,6 +4,7 @@ from uuid import UUID
 from agent_control_engine import list_plugins
 from agent_control_models.agent import Agent as APIAgent
 from agent_control_models.agent import AgentTool
+from agent_control_models.errors import ErrorCode, ValidationErrorItem
 from agent_control_models.server import (
     AgentControlsResponse,
     AgentSummary,
@@ -19,13 +20,20 @@ from agent_control_models.server import (
     PatchAgentResponse,
     SetPolicyResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from jsonschema_rs import ValidationError as JSONSchemaValidationError
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
+from ..errors import (
+    APIValidationError,
+    BadRequestError,
+    ConflictError,
+    DatabaseError,
+    NotFoundError,
+)
 from ..logging_utils import get_logger
 from ..models import (
     Agent,
@@ -302,10 +310,21 @@ async def init_agent(
     builtin_names = _get_builtin_plugin_names()
     for ev in request.evaluators:
         if ev.name in builtin_names:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Evaluator name '{ev.name}' conflicts with built-in plugin. "
-                f"Choose a different name.",
+            raise ConflictError(
+                error_code=ErrorCode.EVALUATOR_NAME_CONFLICT,
+                detail=f"Evaluator name '{ev.name}' conflicts with built-in plugin.",
+                resource="Evaluator",
+                resource_id=ev.name,
+                hint="Choose a different name that does not conflict with built-in plugins.",
+                errors=[
+                    ValidationErrorItem(
+                        resource="Evaluator",
+                        field="name",
+                        code="name_conflict",
+                        message=f"Name '{ev.name}' conflicts with a built-in plugin",
+                        value=ev.name,
+                    )
+                ],
             )
 
     # Look up by name only; name is unique
@@ -341,18 +360,31 @@ async def init_agent(
                 f"Failed to create agent '{request.agent.agent_name}' ({request.agent.agent_id})",
                 exc_info=True,
             )
-            raise HTTPException(
-                status_code=500,
+            raise DatabaseError(
                 detail=f"Failed to create agent '{request.agent.agent_name}': database error",
+                resource="Agent",
+                operation="create",
             )
         return InitAgentResponse(created=created, controls=[])
 
     requested_uuid = request.agent.agent_id
     if existing.agent_uuid != requested_uuid:
         # UUID mismatch for the same name: return error
-        raise HTTPException(
-            status_code=409,
+        raise ConflictError(
+            error_code=ErrorCode.AGENT_UUID_CONFLICT,
             detail=f"Agent name '{request.agent.agent_name}' already exists with different UUID",
+            resource="Agent",
+            resource_id=request.agent.agent_name,
+            hint="Use the existing agent's UUID or choose a different agent name.",
+            errors=[
+                ValidationErrorItem(
+                    resource="Agent",
+                    field="agent_id",
+                    code="uuid_mismatch",
+                    message=f"Agent '{request.agent.agent_name}' exists with a different UUID",
+                    value=str(requested_uuid),
+                )
+            ],
         )
 
     # Parse existing data via AgentData Pydantic model
@@ -364,13 +396,21 @@ async def init_agent(
                 f"Failed to parse existing agent data for '{request.agent.agent_name}'",
                 exc_info=True,
             )
-            raise HTTPException(
-                status_code=422,
+            raise APIValidationError(
+                error_code=ErrorCode.CORRUPTED_DATA,
                 detail=(
-                    f"Agent '{request.agent.agent_name}' has corrupted data and cannot be updated. "
-                    f"Validation error: {str(e)}. "
-                    f"To replace with new data, set force_replace=true in the request."
+                    f"Agent '{request.agent.agent_name}' has corrupted data and cannot be updated"
                 ),
+                resource="Agent",
+                hint="Set force_replace=true in the request to replace the corrupted data.",
+                errors=[
+                    ValidationErrorItem(
+                        resource="Agent",
+                        field="data",
+                        code="corrupted_data",
+                        message=str(e),
+                    )
+                ],
             )
         # User explicitly requested replacement
         _logger.warning(
@@ -432,9 +472,21 @@ async def init_agent(
             # Check compatibility
             is_compatible, compat_errors = check_schema_compatibility(old_schema, new_schema)
             if not is_compatible:
-                raise HTTPException(
-                    status_code=409,
+                raise ConflictError(
+                    error_code=ErrorCode.SCHEMA_INCOMPATIBLE,
                     detail=format_compatibility_error(name, compat_errors),
+                    resource="Evaluator",
+                    resource_id=name,
+                    hint="Ensure backward compatibility or use a new evaluator name.",
+                    errors=[
+                        ValidationErrorItem(
+                            resource="Evaluator",
+                            field="config_schema",
+                            code="schema_incompatible",
+                            message=err,
+                        )
+                        for err in compat_errors
+                    ],
                 )
 
             # Schema is compatible - update if changed
@@ -468,9 +520,10 @@ async def init_agent(
                 f"Failed to update agent '{request.agent.agent_name}' ({request.agent.agent_id})",
                 exc_info=True,
             )
-            raise HTTPException(
-                status_code=500,
+            raise DatabaseError(
                 detail=f"Failed to update agent '{request.agent.agent_name}': database error",
+                resource="Agent",
+                operation="update",
             )
 
     # If the existing agent has a policy, include its controls; otherwise empty list
@@ -507,8 +560,12 @@ async def get_agent(agent_id: UUID, db: AsyncSession = Depends(get_async_db)) ->
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     existing: Agent | None = result.scalars().first()
     if existing is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered via initAgent.",
         )
 
     try:
@@ -518,9 +575,11 @@ async def get_agent(agent_id: UUID, db: AsyncSession = Depends(get_async_db)) ->
             f"Failed to parse agent data for agent '{existing.name}' ({agent_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=422,
+        raise APIValidationError(
+            error_code=ErrorCode.CORRUPTED_DATA,
             detail=f"Agent data is corrupted for agent '{existing.name}'",
+            resource="Agent",
+            hint="The agent's stored data is invalid. Re-register the agent with initAgent.",
         )
 
     try:
@@ -534,9 +593,11 @@ async def get_agent(agent_id: UUID, db: AsyncSession = Depends(get_async_db)) ->
             f"Failed to parse agent metadata for agent '{existing.name}' ({agent_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=422,
+        raise APIValidationError(
+            error_code=ErrorCode.CORRUPTED_DATA,
             detail=f"Agent metadata is corrupted for agent '{existing.name}'",
+            resource="Agent",
+            hint="The agent's metadata is invalid. Re-register the agent with initAgent.",
         )
 
     return GetAgentResponse(
@@ -574,27 +635,42 @@ async def set_agent_policy(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     # Find policy by id
     policy_result = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy: Policy | None = policy_result.scalars().first()
     if policy is None:
-        raise HTTPException(
-            status_code=404, detail=f"Policy with ID '{policy_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
+            detail=f"Policy with ID '{policy_id}' not found",
+            resource="Policy",
+            resource_id=str(policy_id),
+            hint="Verify the policy ID is correct and the policy has been created.",
         )
 
     # Validate controls can run on this agent
-    errors = await _validate_policy_controls_for_agent(agent, policy_id, db)
-    if errors:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": "Policy contains controls incompatible with this agent",
-                "errors": errors,
-            },
+    validation_errors = await _validate_policy_controls_for_agent(agent, policy_id, db)
+    if validation_errors:
+        raise BadRequestError(
+            error_code=ErrorCode.POLICY_CONTROL_INCOMPATIBLE,
+            detail="Policy contains controls incompatible with this agent",
+            hint="Ensure all controls in the policy are compatible with this agent's evaluators.",
+            errors=[
+                ValidationErrorItem(
+                    resource="Control",
+                    field="evaluator",
+                    code="incompatible",
+                    message=err,
+                )
+                for err in validation_errors
+            ],
         )
 
     # Store old policy ID if exists
@@ -612,9 +688,10 @@ async def set_agent_policy(
             f"Failed to assign policy '{policy_id}' to agent '{agent.name}' ({agent_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=f"Failed to assign policy to agent '{agent.name}': database error",
+            resource="Agent",
+            operation="assign policy",
         )
 
     return SetPolicyResponse(success=True, old_policy_id=old_policy_id)
@@ -646,27 +723,36 @@ async def get_agent_policy(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     # Check if agent has a policy
     if agent.policy_id is None:
-        raise HTTPException(
-            status_code=404,
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
             detail=f"Agent '{agent.name}' has no policy assigned",
+            resource="Policy",
+            hint="Assign a policy to the agent using POST /{agent_id}/policy/{policy_id}.",
         )
 
     # Find policy
     policy_result = await db.execute(select(Policy).where(Policy.id == agent.policy_id))
     policy: Policy | None = policy_result.scalars().first()
     if policy is None:
-        raise HTTPException(
-            status_code=404,
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
             detail=(
                 f"Policy with ID '{agent.policy_id}' not found "
                 f"(referenced by agent '{agent.name}')"
             ),
+            resource="Policy",
+            resource_id=str(agent.policy_id),
+            hint="The referenced policy may have been deleted. Assign a new policy to the agent.",
         )
 
     return GetPolicyResponse(policy_id=policy.id)
@@ -701,15 +787,21 @@ async def delete_agent_policy(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     # Check if agent has a policy
     if agent.policy_id is None:
-        raise HTTPException(
-            status_code=404,
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
             detail=f"Agent '{agent.name}' has no policy assigned",
+            resource="Policy",
+            hint="The agent does not have a policy to remove.",
         )
 
     # Remove policy assignment
@@ -722,9 +814,10 @@ async def delete_agent_policy(
             f"Failed to remove policy from agent '{agent.name}' ({agent_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=f"Failed to remove policy from agent '{agent.name}': database error",
+            resource="Agent",
+            operation="remove policy",
         )
 
     return DeletePolicyResponse(success=True)
@@ -758,8 +851,12 @@ async def list_agent_controls(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     if agent.policy_id is None:
@@ -828,8 +925,12 @@ async def list_agent_evaluators(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     try:
@@ -910,15 +1011,23 @@ async def get_agent_evaluator(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     try:
         data_model = AgentData.model_validate(agent.data)
     except ValidationError:
-        raise HTTPException(
-            status_code=404, detail=f"Evaluator '{evaluator_name}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.EVALUATOR_NOT_FOUND,
+            detail=f"Evaluator '{evaluator_name}' not found",
+            resource="Evaluator",
+            resource_id=evaluator_name,
+            hint="The agent's data may be corrupted. Re-register the agent with initAgent.",
         )
 
     for ev in data_model.evaluators or []:
@@ -929,8 +1038,12 @@ async def get_agent_evaluator(
                 config_schema=ev.config_schema,
             )
 
-    raise HTTPException(
-        status_code=404, detail=f"Evaluator '{evaluator_name}' not found"
+    raise NotFoundError(
+        error_code=ErrorCode.EVALUATOR_NOT_FOUND,
+        detail=f"Evaluator '{evaluator_name}' not found on agent '{agent.name}'",
+        resource="Evaluator",
+        resource_id=evaluator_name,
+        hint="Register the evaluator with this agent via initAgent.",
     )
 
 
@@ -966,16 +1079,22 @@ async def patch_agent(
     result = await db.execute(select(Agent).where(Agent.agent_uuid == agent_id))
     agent: Agent | None = result.scalars().first()
     if agent is None:
-        raise HTTPException(
-            status_code=404, detail=f"Agent with ID '{agent_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.AGENT_NOT_FOUND,
+            detail=f"Agent with ID '{agent_id}' not found",
+            resource="Agent",
+            resource_id=str(agent_id),
+            hint="Verify the agent ID is correct and the agent has been registered.",
         )
 
     try:
         data_model = AgentData.model_validate(agent.data)
     except ValidationError:
-        raise HTTPException(
-            status_code=422,
+        raise APIValidationError(
+            error_code=ErrorCode.CORRUPTED_DATA,
             detail=f"Agent '{agent.name}' has corrupted data",
+            resource="Agent",
+            hint="Re-register the agent with initAgent using force_replace=true.",
         )
 
     tools_removed: list[str] = []
@@ -1012,15 +1131,20 @@ async def patch_agent(
                         referencing_controls.append((ctrl.name, ref_eval))
 
             if referencing_controls:
-                refs_str = ", ".join(
-                    f"'{ctrl}' uses '{ev}'" for ctrl, ev in referencing_controls
-                )
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Cannot remove evaluators: active controls reference them. "
-                        f"Remove or update these controls first: {refs_str}"
-                    ),
+                raise ConflictError(
+                    error_code=ErrorCode.EVALUATOR_IN_USE,
+                    detail="Cannot remove evaluators: active controls reference them",
+                    resource="Evaluator",
+                    hint="Remove or update the controls that reference these evaluators first.",
+                    errors=[
+                        ValidationErrorItem(
+                            resource="Control",
+                            field="evaluator.plugin",
+                            code="in_use",
+                            message=f"Control '{ctrl}' uses evaluator '{ev}'",
+                        )
+                        for ctrl, ev in referencing_controls
+                    ],
                 )
 
         new_evaluators = []
@@ -1046,9 +1170,10 @@ async def patch_agent(
                 f"Failed to patch agent '{agent.name}' ({agent_id})",
                 exc_info=True,
             )
-            raise HTTPException(
-                status_code=500,
+            raise DatabaseError(
                 detail=f"Failed to update agent '{agent.name}': database error",
+                resource="Agent",
+                operation="patch",
             )
 
     return PatchAgentResponse(

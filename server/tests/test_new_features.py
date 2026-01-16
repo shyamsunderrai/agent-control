@@ -353,9 +353,11 @@ def test_control_creation_with_unregistered_evaluator_fails(client: TestClient) 
         },
     )
 
-    # Then
+    # Then (RFC 7807 format)
     assert data_resp.status_code == 422
-    assert "not registered" in data_resp.json()["detail"]
+    response_data = data_resp.json()
+    # Check detail message or errors array
+    assert "not registered" in response_data.get("detail", "")
 
 
 def test_policy_assignment_cross_agent_evaluator_fails(client: TestClient) -> None:
@@ -397,11 +399,12 @@ def test_policy_assignment_cross_agent_evaluator_fails(client: TestClient) -> No
     # When: Assign same policy to Agent B (should fail)
     resp_b = client.post(f"/api/v1/agents/{agent_b_id}/policy/{policy_id}")
 
-    # Then
+    # Then (RFC 7807 format)
     assert resp_b.status_code == 400
-    detail = resp_b.json()["detail"]
-    assert "incompatible" in detail["message"]
-    assert any(agent_a_name in err for err in detail["errors"])
+    response_data = resp_b.json()
+    assert "incompatible" in response_data.get("detail", "").lower()
+    errors = response_data.get("errors", [])
+    assert any(agent_a_name in e.get("message", "") for e in errors)
 
 
 # =============================================================================
@@ -559,11 +562,14 @@ def test_patch_agent_remove_evaluator_blocked_by_control(client: TestClient) -> 
         json={"remove_evaluators": ["my-eval"]},
     )
 
-    # Then: Should be rejected with 409
+    # Then: Should be rejected with 409 (RFC 7807 format)
     assert patch_resp.status_code == 409
-    detail = patch_resp.json()["detail"]
+    response_data = patch_resp.json()
+    detail = response_data.get("detail", "")
+    errors = response_data.get("errors", [])
     assert "Cannot remove evaluators" in detail
-    assert "my-eval" in detail
+    # Check errors array contains reference to the evaluator
+    assert any("my-eval" in e.get("message", "") for e in errors)
 
 
 def test_patch_agent_remove_evaluator_allowed_without_policy(client: TestClient) -> None:

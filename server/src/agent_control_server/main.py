@@ -1,16 +1,15 @@
 """Main server application entry point."""
 
 import logging
-import traceback
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import uvicorn
 from agent_control_engine import discover_plugins, list_plugins
 from agent_control_models import HealthResponse
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from .auth import require_api_key
 from .config import settings
@@ -19,6 +18,13 @@ from .endpoints.controls import router as control_router
 from .endpoints.evaluation import router as evaluation_router
 from .endpoints.plugins import router as plugin_router
 from .endpoints.policies import router as policy_router
+from .errors import (
+    APIError,
+    api_error_handler,
+    generic_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+)
 from .logging_utils import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -82,14 +88,21 @@ log_level = "DEBUG" if settings.debug else "INFO"
 configure_logging(level=log_level)
 
 
-@app.exception_handler(Exception)
-async def debug_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    import logging
-    logging.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc), "traceback": traceback.format_exc().splitlines()},
-    )
+# =============================================================================
+# Exception Handlers (RFC 7807 / Kubernetes / GitHub-style)
+# =============================================================================
+
+# Register custom API error handler (highest priority for our errors)
+app.add_exception_handler(APIError, api_error_handler)  # type: ignore[arg-type]
+
+# Register handler for FastAPI's RequestValidationError (Pydantic validation)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
+
+# Register handler for standard HTTPException (legacy code, FastAPI internals)
+app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
+
+# Register catch-all handler for unexpected exceptions
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # API v1 prefix for all routes
 api_v1_prefix = f"{settings.api_prefix}/{settings.api_version}"

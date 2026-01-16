@@ -27,9 +27,10 @@ def test_get_control_data_initially_unconfigured(client: TestClient) -> None:
     control_id = create_control(client)
     # When: fetching its data
     resp = client.get(f"/api/v1/controls/{control_id}/data")
-    # Then: 422 because empty data is not a valid ControlDefinition
+    # Then: 422 because empty data is not a valid ControlDefinition (RFC 7807 format)
     assert resp.status_code == 422
-    assert "invalid data" in resp.json()["detail"]
+    response_data = resp.json()
+    assert "invalid data" in response_data.get("detail", "").lower()
 
 
 VALID_CONTROL_DATA = {
@@ -183,6 +184,7 @@ def test_get_control_not_found(client: TestClient) -> None:
     # When: fetching the control
     resp = client.get(f"/api/v1/controls/{missing_id}")
 
-    # Then: 404
+    # Then: 404 (RFC 7807 format)
     assert resp.status_code == 404
-    assert "not found" in resp.json()["detail"]
+    response_data = resp.json()
+    assert "not found" in response_data.get("detail", "").lower()

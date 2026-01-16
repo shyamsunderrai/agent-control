@@ -26,10 +26,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Security, status
+from agent_control_models.errors import ErrorCode, ErrorReason
+from fastapi import Depends, Security
 from fastapi.security import APIKeyHeader
 
 from .config import auth_settings
+from .errors import APIError, AuthenticationError, ForbiddenError
 from .logging_utils import get_logger
 
 _logger = get_logger(__name__)
@@ -98,7 +100,9 @@ async def _validate_api_key(
         AuthenticatedClient with key details
 
     Raises:
-        HTTPException: 401 if authentication fails, 403 if insufficient privileges
+        AuthenticationError: If authentication fails
+        ForbiddenError: If insufficient privileges
+        APIError: If authentication is misconfigured (AUTH_MISCONFIGURED)
     """
     # Skip validation if auth is disabled
     if not auth_settings.api_key_enabled:
@@ -113,18 +117,21 @@ async def _validate_api_key(
     all_keys = auth_settings.get_api_keys() | auth_settings.get_admin_api_keys()
     if not all_keys:
         _logger.error("API key authentication enabled but no keys configured")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        raise APIError(
+            status_code=500,
+            error_code=ErrorCode.AUTH_MISCONFIGURED,
+            reason=ErrorReason.INTERNAL_ERROR,
             detail="Server authentication misconfigured. Contact administrator.",
+            hint="Server operator must configure API keys via environment variables.",
         )
 
     # Check if key was provided
     if api_key is None:
         _logger.warning("Request missing API key")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        raise AuthenticationError(
+            error_code=ErrorCode.AUTH_MISSING_KEY,
             detail="Missing API key. Provide 'X-API-Key' header.",
-            headers={"WWW-Authenticate": "ApiKey"},
+            hint="Include the 'X-API-Key' header with a valid API key in your request.",
         )
 
     # Validate key
@@ -132,10 +139,10 @@ async def _validate_api_key(
         # Log only prefix for security
         key_prefix = api_key[:8] if len(api_key) > 8 else "***"
         _logger.warning(f"Invalid API key attempted: {key_prefix}...")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        raise AuthenticationError(
+            error_code=ErrorCode.AUTH_INVALID_KEY,
             detail="Invalid API key.",
-            headers={"WWW-Authenticate": "ApiKey"},
+            hint="Check that your API key is correct and has not expired.",
         )
 
     # Check admin requirement
@@ -143,9 +150,10 @@ async def _validate_api_key(
     if require_admin and not is_admin:
         key_prefix = api_key[:8] if len(api_key) > 8 else "***"
         _logger.warning(f"Non-admin key attempted admin operation: {key_prefix}...")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+        raise ForbiddenError(
+            error_code=ErrorCode.AUTH_INSUFFICIENT_PRIVILEGES,
             detail="This operation requires admin privileges.",
+            hint="Use an admin API key for this operation.",
         )
 
     auth_level = AuthLevel.ADMIN if is_admin else AuthLevel.API_KEY

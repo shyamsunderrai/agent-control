@@ -2,10 +2,12 @@
 
 from agent_control_engine.core import ControlEngine
 from agent_control_models import ControlDefinition, EvaluationRequest, EvaluationResponse
-from fastapi import APIRouter, Depends, HTTPException
+from agent_control_models.errors import ErrorCode, ValidationErrorItem
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
+from ..errors import APIValidationError
 from ..logging_utils import get_logger
 from ..services.controls import list_controls_for_agent
 
@@ -54,4 +56,17 @@ async def evaluate(
         return await engine.process(request)
     except ValueError as e:
         _logger.error(f"Evaluation failed: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
+        raise APIValidationError(
+            error_code=ErrorCode.EVALUATION_FAILED,
+            detail="Evaluation failed due to invalid configuration or input",
+            resource="Evaluation",
+            hint="Check the evaluation request format and control configurations.",
+            errors=[
+                ValidationErrorItem(
+                    resource="Evaluation",
+                    field=None,
+                    code="evaluation_error",
+                    message=str(e),
+                )
+            ],
+        )

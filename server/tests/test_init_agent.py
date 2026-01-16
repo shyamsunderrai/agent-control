@@ -245,10 +245,12 @@ def test_init_agent_logs_warning_on_bad_existing_data(client: TestClient, caplog
     logger_name = "agent_control_server.endpoints.agents"
     with caplog.at_level(logging.ERROR, logger=logger_name):
         r2 = client.post("/api/v1/agents/initAgent", json=payload)
-        # Then: a 422 error is returned
+        # Then: a 422 error is returned (RFC 7807 format)
         assert r2.status_code == 422
-        assert "corrupted data" in r2.json()["detail"]
-        assert "force_replace=true" in r2.json()["detail"]
+        response_data = r2.json()
+        assert "corrupted data" in response_data.get("detail", "").lower()
+        # Check hint contains force_replace suggestion
+        assert "force_replace" in response_data.get("hint", "").lower()
         # Then: an error is logged about parse failure
         messages = [rec.getMessage() for rec in caplog.records]
         assert any("Failed to parse existing agent data" in m for m in messages)

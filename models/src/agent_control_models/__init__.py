@@ -15,6 +15,17 @@ from .controls import (
     RegexConfig,
     SQLControlEvaluatorPluginConfig,
 )
+from .errors import (
+    ERROR_TITLES,
+    ErrorCode,
+    ErrorDetails,
+    ErrorMetadata,
+    ErrorReason,
+    ProblemDetail,
+    ValidationErrorItem,
+    get_error_title,
+    make_error_type,
+)
 from .evaluation import (
     EvaluationRequest,
     EvaluationResponse,
@@ -77,6 +88,16 @@ __all__ = [
     "get_plugin",
     "get_all_plugins",
     "clear_plugins",
+    # Error models (RFC 7807 / Kubernetes / GitHub-style)
+    "ProblemDetail",
+    "ErrorCode",
+    "ErrorReason",
+    "ErrorDetails",
+    "ErrorMetadata",
+    "ValidationErrorItem",
+    "make_error_type",
+    "get_error_title",
+    "ERROR_TITLES",
     # Server models
     "AgentSummary",
     "ControlSummary",

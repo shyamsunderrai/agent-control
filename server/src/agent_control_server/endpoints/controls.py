@@ -1,5 +1,6 @@
 from agent_control_engine import list_plugins
 from agent_control_models import ControlDefinition
+from agent_control_models.errors import ErrorCode, ValidationErrorItem
 from agent_control_models.server import (
     ControlSummary,
     CreateControlRequest,
@@ -14,13 +15,19 @@ from agent_control_models.server import (
     SetControlDataRequest,
     SetControlDataResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from jsonschema_rs import ValidationError as JSONSchemaValidationError
 from pydantic import ValidationError
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
+from ..errors import (
+    APIValidationError,
+    ConflictError,
+    DatabaseError,
+    NotFoundError,
+)
 from ..logging_utils import get_logger
 from ..models import Agent, AgentData, Control, policy_controls
 from ..services.evaluator_utils import parse_evaluator_ref, validate_config_against_schema
@@ -63,9 +70,12 @@ async def create_control(
     # Uniqueness check
     existing = await db.execute(select(Control.id).where(Control.name == request.name))
     if existing.first() is not None:
-        raise HTTPException(
-            status_code=409,
+        raise ConflictError(
+            error_code=ErrorCode.CONTROL_NAME_CONFLICT,
             detail=f"Control with name '{request.name}' already exists",
+            resource="Control",
+            resource_id=request.name,
+            hint="Choose a different name or update the existing control.",
         )
 
     control = Control(name=request.name, data={})
@@ -79,9 +89,10 @@ async def create_control(
             f"Failed to create control '{request.name}'",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=f"Failed to create control '{request.name}': database error",
+            resource="Control",
+            operation="create",
         )
     return CreateControlResponse(control_id=control.id)
 
@@ -111,8 +122,12 @@ async def get_control(
     res = await db.execute(select(Control).where(Control.id == control_id))
     control = res.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
 
     # Parse data if present and non-empty
@@ -165,15 +180,30 @@ async def get_control_data(
     res = await db.execute(select(Control).where(Control.id == control_id))
     control = res.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
     try:
         control_def = ControlDefinition.model_validate(control.data)
     except ValidationError as e:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Control '{control.name}' has invalid data: {e.errors()}",
+        raise APIValidationError(
+            error_code=ErrorCode.CORRUPTED_DATA,
+            detail=f"Control '{control.name}' has invalid data",
+            resource="Control",
+            hint="Update the control data using PUT /{control_id}/data.",
+            errors=[
+                ValidationErrorItem(
+                    resource="Control",
+                    field=".".join(str(loc) for loc in err.get("loc", [])),
+                    code=err.get("type", "validation_error"),
+                    message=err.get("msg", "Validation failed"),
+                )
+                for err in e.errors()
+            ],
         )
     return GetControlDataResponse(data=control_def)
 
@@ -210,8 +240,12 @@ async def set_control_data(
     res = await db.execute(select(Control).where(Control.id == control_id))
     control = res.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
 
     # Validate evaluator config
@@ -225,18 +259,33 @@ async def set_control_data(
         )
         agent = agent_result.scalars().first()
         if agent is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Agent '{agent_name}' not found. "
-                f"Ensure the agent exists before creating controls that reference its evaluators.",
+            raise NotFoundError(
+                error_code=ErrorCode.AGENT_NOT_FOUND,
+                detail=f"Agent '{agent_name}' not found",
+                resource="Agent",
+                resource_id=agent_name,
+                hint=(
+                    "Ensure the agent exists before creating controls "
+                    "that reference its evaluators."
+                ),
             )
 
         try:
             agent_data = AgentData.model_validate(agent.data)
         except ValidationError as e:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Agent '{agent_name}' has invalid data: {e.errors()}",
+            raise APIValidationError(
+                error_code=ErrorCode.CORRUPTED_DATA,
+                detail=f"Agent '{agent_name}' has invalid data",
+                resource="Agent",
+                errors=[
+                    ValidationErrorItem(
+                        resource="Agent",
+                        field=".".join(str(loc) for loc in err.get("loc", [])),
+                        code=err.get("type", "validation_error"),
+                        message=err.get("msg", "Validation failed"),
+                    )
+                    for err in e.errors()
+                ],
             )
 
         evaluator = next(
@@ -245,11 +294,23 @@ async def set_control_data(
         )
         if evaluator is None:
             available = [e.name for e in (agent_data.evaluators or [])]
-            raise HTTPException(
-                status_code=422,
-                detail=f"Evaluator '{eval_name}' is not registered with agent '{agent_name}'. "
-                f"Available evaluators: {available or 'none'}. "
-                f"Register it via initAgent first.",
+            raise APIValidationError(
+                error_code=ErrorCode.EVALUATOR_NOT_FOUND,
+                detail=f"Evaluator '{eval_name}' is not registered with agent '{agent_name}'",
+                resource="Evaluator",
+                hint=(
+                    f"Register it via initAgent first. "
+                    f"Available evaluators: {available or 'none'}."
+                ),
+                errors=[
+                    ValidationErrorItem(
+                        resource="Control",
+                        field="data.evaluator.plugin",
+                        code="evaluator_not_found",
+                        message=f"Evaluator '{eval_name}' not found on agent '{agent_name}'",
+                        value=plugin_ref,
+                    )
+                ],
             )
 
         # Validate config against evaluator's schema
@@ -259,12 +320,19 @@ async def set_control_data(
                     request.data.evaluator.config, evaluator.config_schema
                 )
             except JSONSchemaValidationError as e:
-                raise HTTPException(
-                    status_code=422,
-                    detail=(
-                        f"Config validation failed for evaluator "
-                        f"'{agent_name}:{eval_name}': {e.message}"
-                    ),
+                raise APIValidationError(
+                    error_code=ErrorCode.INVALID_CONFIG,
+                    detail=f"Config validation failed for evaluator '{agent_name}:{eval_name}'",
+                    resource="Control",
+                    hint="Check the evaluator's config schema for required fields and types.",
+                    errors=[
+                        ValidationErrorItem(
+                            resource="Control",
+                            field="data.evaluator.config",
+                            code="schema_validation_error",
+                            message=e.message,
+                        )
+                    ],
                 )
     else:
         # Built-in or server-side plugin: validate if registered
@@ -273,14 +341,38 @@ async def set_control_data(
             try:
                 plugin_cls.config_model(**request.data.evaluator.config)
             except ValidationError as e:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Config validation failed for plugin '{eval_name}': {e.errors()}",
+                raise APIValidationError(
+                    error_code=ErrorCode.INVALID_CONFIG,
+                    detail=f"Config validation failed for plugin '{eval_name}'",
+                    resource="Control",
+                    hint="Check the plugin's config schema for required fields and types.",
+                    errors=[
+                        ValidationErrorItem(
+                            resource="Control",
+                            field=(
+                                f"data.evaluator.config."
+                                f"{'.'.join(str(loc) for loc in err.get('loc', []))}"
+                            ),
+                            code=err.get("type", "validation_error"),
+                            message=err.get("msg", "Validation failed"),
+                        )
+                        for err in e.errors()
+                    ],
                 )
             except TypeError as e:
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Invalid config parameters for plugin '{eval_name}': {e}",
+                raise APIValidationError(
+                    error_code=ErrorCode.INVALID_CONFIG,
+                    detail=f"Invalid config parameters for plugin '{eval_name}'",
+                    resource="Control",
+                    hint="Check the plugin's config schema for valid parameter names.",
+                    errors=[
+                        ValidationErrorItem(
+                            resource="Control",
+                            field="data.evaluator.config",
+                            code="invalid_parameters",
+                            message=str(e),
+                        )
+                    ],
                 )
         # If plugin not found, allow it - might be a server-side registered plugin
         # that will be validated at runtime
@@ -305,9 +397,10 @@ async def set_control_data(
             f"Failed to update data for control '{control.name}' ({control_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=f"Failed to update data for control '{control.name}': database error",
+            resource="Control",
+            operation="update data",
         )
     return SetControlDataResponse(success=True)
 
@@ -483,8 +576,12 @@ async def delete_control(
     result = await db.execute(select(Control).where(Control.id == control_id))
     control = result.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
 
     # Check for associations with policies
@@ -496,17 +593,25 @@ async def delete_control(
     associated_policy_ids = [row[0] for row in assoc_result.all()]
 
     if associated_policy_ids and not force:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": (
-                    f"Control '{control.name}' is associated with "
-                    f"{len(associated_policy_ids)} policy/policies"
-                ),
-                "policy_ids": associated_policy_ids,
-                "hint": "Use force=true to dissociate and delete, "
-                "or remove associations manually first",
-            },
+        raise ConflictError(
+            error_code=ErrorCode.CONTROL_IN_USE,
+            detail=(
+                f"Control '{control.name}' is associated with "
+                f"{len(associated_policy_ids)} policy/policies"
+            ),
+            resource="Control",
+            resource_id=control.name,
+            hint="Use force=true to dissociate and delete, or remove associations manually first.",
+            errors=[
+                ValidationErrorItem(
+                    resource="Policy",
+                    field="controls",
+                    code="control_in_use",
+                    message=f"Control is associated with policy ID {pid}",
+                    value=pid,
+                )
+                for pid in associated_policy_ids
+            ],
         )
 
     # Remove associations if force=true
@@ -534,9 +639,10 @@ async def delete_control(
             f"Failed to delete control '{control.name}' ({control_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=f"Failed to delete control '{control.name}': database error",
+            resource="Control",
+            operation="delete",
         )
 
     return DeleteControlResponse(success=True, dissociated_from=dissociated_from)
@@ -578,8 +684,12 @@ async def patch_control(
     result = await db.execute(select(Control).where(Control.id == control_id))
     control = result.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
 
     # Track if anything changed
@@ -592,9 +702,12 @@ async def patch_control(
             select(Control.id).where(Control.name == request.name)
         )
         if existing.first() is not None:
-            raise HTTPException(
-                status_code=409,
+            raise ConflictError(
+                error_code=ErrorCode.CONTROL_NAME_CONFLICT,
                 detail=f"Control with name '{request.name}' already exists",
+                resource="Control",
+                resource_id=request.name,
+                hint="Choose a different name or update the existing control.",
             )
         control.name = request.name
         updated = True
@@ -603,12 +716,22 @@ async def patch_control(
     current_enabled: bool | None = None
     if request.enabled is not None:
         if not control.data:
-            raise HTTPException(
-                status_code=422,
+            raise APIValidationError(
+                error_code=ErrorCode.VALIDATION_ERROR,
                 detail=(
-                    f"Cannot update enabled status: control '{control.name}' has no data "
-                    f"configured. Use PUT /{control_id}/data to configure the control first."
+                    f"Cannot update enabled status: control '{control.name}' "
+                    "has no data configured"
                 ),
+                resource="Control",
+                hint=f"Use PUT /{control_id}/data to configure the control first.",
+                errors=[
+                    ValidationErrorItem(
+                        resource="Control",
+                        field="enabled",
+                        code="no_data_configured",
+                        message="Control must have data configured before enabling/disabling",
+                    )
+                ],
             )
 
         try:
@@ -619,9 +742,19 @@ async def patch_control(
                 updated = True
             current_enabled = ctrl_def.enabled
         except ValidationError as e:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Control '{control.name}' has corrupted data: {e}",
+            raise APIValidationError(
+                error_code=ErrorCode.CORRUPTED_DATA,
+                detail=f"Control '{control.name}' has corrupted data",
+                resource="Control",
+                hint="Update the control data using PUT /{control_id}/data.",
+                errors=[
+                    ValidationErrorItem(
+                        resource="Control",
+                        field="data",
+                        code="corrupted_data",
+                        message=str(e),
+                    )
+                ],
             )
     elif control.data:
         # Get current enabled status for response
@@ -643,9 +776,10 @@ async def patch_control(
                 f"Failed to update control '{control.name}' ({control_id})",
                 exc_info=True,
             )
-            raise HTTPException(
-                status_code=500,
+            raise DatabaseError(
                 detail=f"Failed to update control '{control.name}': database error",
+                resource="Control",
+                operation="update",
             )
 
     return PatchControlResponse(

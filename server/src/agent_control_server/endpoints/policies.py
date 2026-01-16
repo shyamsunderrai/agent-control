@@ -1,14 +1,16 @@
+from agent_control_models.errors import ErrorCode
 from agent_control_models.server import (
     AssocResponse,
     CreatePolicyRequest,
     CreatePolicyResponse,
     GetPolicyControlsResponse,
 )
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_db
+from ..errors import ConflictError, DatabaseError, NotFoundError
 from ..logging_utils import get_logger
 from ..models import Control, Policy, policy_controls
 
@@ -46,9 +48,12 @@ async def create_policy(
     # Uniqueness check
     existing = await db.execute(select(Policy.id).where(Policy.name == request.name))
     if existing.first() is not None:
-        raise HTTPException(
-            status_code=409,
+        raise ConflictError(
+            error_code=ErrorCode.POLICY_NAME_CONFLICT,
             detail=f"Policy with name '{request.name}' already exists",
+            resource="Policy",
+            resource_id=request.name,
+            hint="Choose a different name or update the existing policy.",
         )
 
     policy = Policy(name=request.name)
@@ -62,9 +67,10 @@ async def create_policy(
             f"Failed to create policy '{request.name}'",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=f"Failed to create policy '{request.name}': database error",
+            resource="Policy",
+            operation="create",
         )
     return CreatePolicyResponse(policy_id=policy.id)
 
@@ -100,15 +106,23 @@ async def add_control_to_policy(
     pol_res = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = pol_res.scalars().first()
     if policy is None:
-        raise HTTPException(
-            status_code=404, detail=f"Policy with ID '{policy_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
+            detail=f"Policy with ID '{policy_id}' not found",
+            resource="Policy",
+            resource_id=str(policy_id),
+            hint="Verify the policy ID is correct and the policy has been created.",
         )
 
     ctl_res = await db.execute(select(Control).where(Control.id == control_id))
     control = ctl_res.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
 
     # Add association using INSERT ... ON CONFLICT DO NOTHING for idempotency
@@ -129,12 +143,13 @@ async def add_control_to_policy(
             f"to policy '{policy.name}' ({policy_id}): {e}",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=(
-                f"Failed to add control '{control.name}' to policy '{policy.name}': "
-                f"database error"
+                f"Failed to add control '{control.name}' to "
+                f"policy '{policy.name}': database error"
             ),
+            resource="Policy",
+            operation="add control",
         )
 
     return AssocResponse(success=True)
@@ -170,15 +185,23 @@ async def remove_control_from_policy(
     pol_res = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = pol_res.scalars().first()
     if policy is None:
-        raise HTTPException(
-            status_code=404, detail=f"Policy with ID '{policy_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
+            detail=f"Policy with ID '{policy_id}' not found",
+            resource="Policy",
+            resource_id=str(policy_id),
+            hint="Verify the policy ID is correct and the policy has been created.",
         )
 
     ctl_res = await db.execute(select(Control).where(Control.id == control_id))
     control = ctl_res.scalars().first()
     if control is None:
-        raise HTTPException(
-            status_code=404, detail=f"Control with ID '{control_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.CONTROL_NOT_FOUND,
+            detail=f"Control with ID '{control_id}' not found",
+            resource="Control",
+            resource_id=str(control_id),
+            hint="Verify the control ID is correct and the control has been created.",
         )
 
     # Remove association (idempotent - deleting non-existent is no-op)
@@ -197,12 +220,13 @@ async def remove_control_from_policy(
             f"from policy '{policy.name}' ({policy_id})",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
+        raise DatabaseError(
             detail=(
-                f"Failed to remove control '{control.name}' from policy '{policy.name}': "
-                "database error"
+                f"Failed to remove control '{control.name}' from "
+                f"policy '{policy.name}': database error"
             ),
+            resource="Policy",
+            operation="remove control",
         )
 
     return AssocResponse(success=True)
@@ -232,8 +256,12 @@ async def list_policy_controls(
     """
     pol_res = await db.execute(select(Policy.id).where(Policy.id == policy_id))
     if pol_res.first() is None:
-        raise HTTPException(
-            status_code=404, detail=f"Policy with ID '{policy_id}' not found"
+        raise NotFoundError(
+            error_code=ErrorCode.POLICY_NOT_FOUND,
+            detail=f"Policy with ID '{policy_id}' not found",
+            resource="Policy",
+            resource_id=str(policy_id),
+            hint="Verify the policy ID is correct and the policy has been created.",
         )
 
     rows = await db.execute(

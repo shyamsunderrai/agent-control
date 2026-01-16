@@ -71,9 +71,10 @@ def test_init_agent_evaluator_name_collision_rejected(client: TestClient) -> Non
     )
     # When: Initializing agent
     resp = client.post("/api/v1/agents/initAgent", json=payload)
-    # Then: Should be rejected
-    assert resp.status_code == 400
-    assert "conflicts with built-in plugin" in resp.json()["detail"]
+    # Then: Should be rejected (RFC 7807 format)
+    assert resp.status_code == 409
+    response_data = resp.json()
+    assert "conflicts with built-in plugin" in response_data.get("detail", "")
 
 
 def test_init_agent_evaluator_name_collision_list(client: TestClient) -> None:
@@ -84,8 +85,8 @@ def test_init_agent_evaluator_name_collision_list(client: TestClient) -> None:
     )
     # When: Initializing agent
     resp = client.post("/api/v1/agents/initAgent", json=payload)
-    # Then: Should be rejected
-    assert resp.status_code == 400
+    # Then: Should be rejected (RFC 7807 format - ConflictError returns 409)
+    assert resp.status_code == 409
 
 
 def test_init_agent_update_evaluator_compatible_schema(client: TestClient) -> None:
