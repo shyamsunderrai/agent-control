@@ -11,6 +11,10 @@ export type Agent = components["schemas"]["Agent"];
 export type AgentTool = components["schemas"]["AgentTool"];
 export type EvaluatorSchema = components["schemas"]["EvaluatorSchema"];
 
+// Plugin types
+export type PluginInfo = components["schemas"]["PluginInfo"];
+export type PluginsResponse = Record<string, PluginInfo>;
+
 // Request/Response types
 export type InitAgentRequest = components["schemas"]["InitAgentRequest"];
 export type InitAgentResponse = components["schemas"]["InitAgentResponse"];
@@ -18,6 +22,24 @@ export type GetAgentResponse = components["schemas"]["GetAgentResponse"];
 export type AgentControlsResponse =
   components["schemas"]["AgentControlsResponse"];
 export type Control = components["schemas"]["Control"];
+export type ControlDefinition = components["schemas"]["ControlDefinition"];
+
+// Extracted enums from ControlDefinition
+export type ControlAppliesTo = ControlDefinition["applies_to"];
+export type ControlCheckStage = ControlDefinition["check_stage"];
+export type ControlActionDecision =
+  components["schemas"]["ControlAction"]["decision"];
+
+// Control types
+export type CreateControlRequest = components["schemas"]["CreateControlRequest"];
+export type CreateControlResponse =
+  components["schemas"]["CreateControlResponse"];
+export type SetControlDataRequest =
+  components["schemas"]["SetControlDataRequest"];
+export type SetControlDataResponse =
+  components["schemas"]["SetControlDataResponse"];
+export type GetControlDataResponse =
+  components["schemas"]["GetControlDataResponse"];
 
 // Helper type to extract query parameters from operations
 type ExtractQueryParams<T> = T extends { parameters: { query?: infer Q } }
