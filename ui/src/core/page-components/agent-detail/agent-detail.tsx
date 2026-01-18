@@ -182,23 +182,8 @@ const AgentDetailPage = ({ agentId }: AgentDetailPageProps) => {
     setSelectedControl(null);
   };
 
-  const handleSaveControl = (data: Control) => {
-    updateControl.mutate(
-      {
-        agentId,
-        controlId: data.id,
-        definition: data.control,
-      },
-      {
-        onSuccess: () => {
-          setEditModalOpened(false);
-          setSelectedControl(null);
-        },
-        onError: (err) => {
-          console.error("Failed to update control:", err);
-        },
-      }
-    );
+  const handleEditControlSuccess = () => {
+    setSelectedControl(null);
   };
 
   return (
@@ -340,8 +325,9 @@ const AgentDetailPage = ({ agentId }: AgentDetailPageProps) => {
       <EditControl
         opened={editModalOpened}
         control={selectedControl}
+        agentId={agentId}
         onClose={handleCloseEditModal}
-        onSave={handleSaveControl}
+        onSuccess={handleEditControlSuccess}
       />
     </Box>
   );

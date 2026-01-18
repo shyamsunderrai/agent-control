@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/core/api/client";
+import { parseApiError } from "@/core/api/errors";
 import type { ControlDefinition } from "@/core/api/types";
 
 interface AddControlToAgentParams {
@@ -35,55 +36,78 @@ export function useAddControlToAgent() {
       if (policyError || !policyData?.policy_id) {
         // Step 2: Create a new policy and assign it to the agent
         const policyName = `policy-${agentId}`;
-        const { data: createPolicyResult, error: createPolicyError } =
-          await api.policies.create(policyName);
+        const {
+          data: createPolicyResult,
+          error: createPolicyError,
+          response: createPolicyResponse,
+        } = await api.policies.create(policyName);
 
         if (createPolicyError || !createPolicyResult) {
-          throw new Error("Failed to create policy");
+          throw parseApiError(
+            createPolicyError,
+            "Failed to create policy",
+            createPolicyResponse?.status
+          );
         }
 
         policyId = createPolicyResult.policy_id;
 
         // Assign policy to agent
-        const { error: assignError } = await api.agents.setPolicy(
-          agentId,
-          policyId
-        );
+        const { error: assignError, response: assignResponse } =
+          await api.agents.setPolicy(agentId, policyId);
 
         if (assignError) {
-          throw new Error("Failed to assign policy to agent");
+          throw parseApiError(
+            assignError,
+            "Failed to assign policy to agent",
+            assignResponse?.status
+          );
         }
       } else {
         policyId = policyData.policy_id;
       }
 
       // Step 3: Create the control
-      const { data: createControlResult, error: createControlError } =
-        await api.controls.create({ name: controlName });
+      const {
+        data: createControlResult,
+        error: createControlError,
+        response: createControlResponse,
+      } = await api.controls.create({ name: controlName });
 
       if (createControlError || !createControlResult) {
-        throw new Error("Failed to create control");
+        throw parseApiError(
+          createControlError,
+          "Failed to create control",
+          createControlResponse?.status
+        );
       }
 
       const controlId = createControlResult.control_id;
 
       // Step 4: Set control data (definition)
-      const { error: setDataError } = await api.controls.setData(controlId, {
-        data: definition,
-      });
+      const { error: setDataError, response: setDataResponse } =
+        await api.controls.setData(controlId, {
+          data: definition,
+        });
 
       if (setDataError) {
-        throw new Error("Failed to set control data");
+        throw parseApiError(
+          setDataError,
+          "Failed to set control data",
+          setDataResponse?.status
+        );
       }
 
       // Step 5: Add control to policy
-      const { error: addControlError } = await api.policies.addControl(
-        policyId,
-        controlId
-      );
+      const { error: addControlError, response: addControlResponse } =
+        await api.policies.addControl(policyId, controlId);
 
       if (addControlError) {
-        throw new Error("Failed to add control to policy");
+        throw parseApiError(
+          addControlError,
+          "Failed to add control to policy",
+          addControlResponse?.status
+        );
       }
 
       return { controlId, policyId };

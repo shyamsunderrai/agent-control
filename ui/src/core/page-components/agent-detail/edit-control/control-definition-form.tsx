@@ -1,4 +1,12 @@
-import { Box, Group, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import {
+  Box,
+  Group,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
 
 import type {
@@ -9,9 +17,7 @@ import type {
 
 import type { ControlDefinitionFormProps } from "./types";
 
-export const ControlDefinitionForm = ({
-  form,
-}: ControlDefinitionFormProps) => {
+export const ControlDefinitionForm = ({ form }: ControlDefinitionFormProps) => {
   return (
     <Stack gap='md'>
       <Box>
@@ -44,9 +50,12 @@ export const ControlDefinitionForm = ({
             { value: "tool_call", label: "Tool Call" },
           ]}
           size='sm'
-          {...form.getInputProps("appliesTo")}
+          {...form.getInputProps("applies_to")}
           onChange={(value) =>
-            form.setFieldValue("appliesTo", (value as ControlAppliesTo) || "llm_call")
+            form.setFieldValue(
+              "applies_to",
+              (value as ControlAppliesTo) || "llm_call"
+            )
           }
         />
       </Box>
@@ -66,9 +75,12 @@ export const ControlDefinitionForm = ({
             { value: "post", label: "Post (after execution)" },
           ]}
           size='sm'
-          {...form.getInputProps("checkStage")}
+          {...form.getInputProps("check_stage")}
           onChange={(value) =>
-            form.setFieldValue("checkStage", (value as ControlCheckStage) || "post")
+            form.setFieldValue(
+              "check_stage",
+              (value as ControlCheckStage) || "post"
+            )
           }
         />
       </Box>
@@ -94,8 +106,10 @@ export const ControlDefinitionForm = ({
           size='sm'
           searchable
           allowDeselect={false}
-          {...form.getInputProps("selectorPath")}
-          onChange={(value) => form.setFieldValue("selectorPath", value || "*")}
+          {...form.getInputProps("selector_path")}
+          onChange={(value) =>
+            form.setFieldValue("selector_path", value || "*")
+          }
         />
       </Box>
 
@@ -116,9 +130,12 @@ export const ControlDefinitionForm = ({
             { value: "log", label: "Log" },
           ]}
           size='sm'
-          {...form.getInputProps("actionDecision")}
+          {...form.getInputProps("action_decision")}
           onChange={(value) =>
-            form.setFieldValue("actionDecision", (value as ControlActionDecision) || "deny")
+            form.setFieldValue(
+              "action_decision",
+              (value as ControlActionDecision) || "deny"
+            )
           }
         />
       </Box>

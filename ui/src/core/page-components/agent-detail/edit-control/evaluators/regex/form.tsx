@@ -1,8 +1,9 @@
 import { Box, Stack, Text, TextInput } from "@mantine/core";
 
-import type { RegexFormProps } from "../types";
+import type { EvaluatorFormProps } from "../types";
+import type { RegexFormValues } from "./types";
 
-export const RegexForm = ({ form }: RegexFormProps) => {
+export const RegexForm = ({ form }: EvaluatorFormProps<RegexFormValues>) => {
   return (
     <Stack gap='md'>
       <Box>

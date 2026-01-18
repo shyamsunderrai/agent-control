@@ -22,8 +22,7 @@ import {
 import { type ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 
-import type { Control, PluginInfo } from "@/core/api/types";
-import { useAddControlToAgent } from "@/core/hooks/query-hooks/use-add-control-to-agent";
+import type { PluginInfo } from "@/core/api/types";
 import { usePlugins } from "@/core/hooks/query-hooks/use-plugins";
 
 import { EditControl } from "./edit-control";
@@ -71,7 +70,6 @@ export function ControlStoreModal({
   );
   const [editModalOpened, setEditModalOpened] = useState(false);
   const { data: pluginsData, isLoading, error } = usePlugins();
-  const addControlToAgent = useAddControlToAgent();
 
   const handleAddClick = (plugin: PluginWithId) => {
     setSelectedPlugin(plugin);
@@ -83,23 +81,9 @@ export function ControlStoreModal({
     setSelectedPlugin(null);
   };
 
-  const handleEditModalSave = (data: Control) => {
-    addControlToAgent.mutate(
-      {
-        agentId,
-        controlName: data.name,
-        definition: data.control,
-      },
-      {
-        onSuccess: () => {
-          handleEditModalClose();
-          onClose();
-        },
-        onError: (err) => {
-          console.error("Failed to add control to agent:", err);
-        },
-      }
-    );
+  const handleEditModalSuccess = () => {
+    handleEditModalClose();
+    onClose();
   };
 
   // Transform plugins record to array for table display
@@ -379,8 +363,10 @@ export function ControlStoreModal({
               }
             : null
         }
+        agentId={agentId}
+        mode='create'
         onClose={handleEditModalClose}
-        onSave={handleEditModalSave}
+        onSuccess={handleEditModalSuccess}
       />
     </Modal>
   );

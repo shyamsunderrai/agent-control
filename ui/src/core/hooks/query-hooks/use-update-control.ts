@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/core/api/client";
+import { parseApiError } from "@/core/api/errors";
 import type { ControlDefinition } from "@/core/api/types";
 
 interface UpdateControlParams {
@@ -17,12 +18,16 @@ export function useUpdateControl() {
 
   return useMutation({
     mutationFn: async ({ controlId, definition }: UpdateControlParams) => {
-      const { data, error } = await api.controls.setData(controlId, {
+      const { data, error, response } = await api.controls.setData(controlId, {
         data: definition,
       });
 
       if (error) {
-        throw new Error("Failed to update control");
+        throw parseApiError(
+          error,
+          "Failed to update control",
+          response?.status
+        );
       }
 
       return data;

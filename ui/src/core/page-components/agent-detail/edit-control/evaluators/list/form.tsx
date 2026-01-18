@@ -1,8 +1,9 @@
 import { Box, Checkbox, Select, Stack, Text, Textarea } from "@mantine/core";
 
-import type { ListFormProps, ListFormValues } from "../types";
+import type { EvaluatorFormProps } from "../types";
+import type { ListFormValues } from "./types";
 
-export const ListForm = ({ form }: ListFormProps) => {
+export const ListForm = ({ form }: EvaluatorFormProps<ListFormValues>) => {
   return (
     <Stack gap='md'>
       <Box>
@@ -33,7 +34,10 @@ export const ListForm = ({ form }: ListFormProps) => {
           size='sm'
           {...form.getInputProps("logic")}
           onChange={(value) =>
-            form.setFieldValue("logic", (value as ListFormValues["logic"]) || "any")
+            form.setFieldValue(
+              "logic",
+              (value as ListFormValues["logic"]) || "any"
+            )
           }
         />
       </Box>
@@ -48,9 +52,12 @@ export const ListForm = ({ form }: ListFormProps) => {
             { value: "no_match", label: "No match (trigger when not matched)" },
           ]}
           size='sm'
-          {...form.getInputProps("matchOn")}
+          {...form.getInputProps("match_on")}
           onChange={(value) =>
-            form.setFieldValue("matchOn", (value as ListFormValues["matchOn"]) || "match")
+            form.setFieldValue(
+              "match_on",
+              (value as ListFormValues["match_on"]) || "match"
+            )
           }
         />
       </Box>
@@ -65,9 +72,12 @@ export const ListForm = ({ form }: ListFormProps) => {
             { value: "contains", label: "Contains (substring match)" },
           ]}
           size='sm'
-          {...form.getInputProps("matchMode")}
+          {...form.getInputProps("match_mode")}
           onChange={(value) =>
-            form.setFieldValue("matchMode", (value as ListFormValues["matchMode"]) || "exact")
+            form.setFieldValue(
+              "match_mode",
+              (value as ListFormValues["match_mode"]) || "exact"
+            )
           }
         />
       </Box>
@@ -76,7 +86,7 @@ export const ListForm = ({ form }: ListFormProps) => {
         <Checkbox
           label='Case sensitive'
           size='sm'
-          {...form.getInputProps("caseSensitive", { type: "checkbox" })}
+          {...form.getInputProps("case_sensitive", { type: "checkbox" })}
         />
       </Box>
     </Stack>

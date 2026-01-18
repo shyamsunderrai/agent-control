@@ -173,7 +173,7 @@
       "post": {
         "tags": ["agents"],
         "summary": "Assign policy to agent",
-        "description": "Assign a policy to an agent, replacing any existing policy assignment.\n\nThe agent will immediately inherit all controls from control sets in the assigned policy.\n\nArgs:\n    agent_id: UUID of the agent\n    policy_id: ID of the policy to assign\n    db: Database session (injected)\n\nReturns:\n    SetPolicyResponse with success flag and previous policy ID (if any)\n\nRaises:\n    HTTPException 404: Agent or policy not found\n    HTTPException 500: Database error during assignment",
+        "description": "Assign a policy to an agent, replacing any existing policy assignment.\n\nThe agent will immediately inherit all controls from the assigned policy.\n\nArgs:\n    agent_id: UUID of the agent\n    policy_id: ID of the policy to assign\n    db: Database session (injected)\n\nReturns:\n    SetPolicyResponse with success flag and previous policy ID (if any)\n\nRaises:\n    HTTPException 404: Agent or policy not found\n    HTTPException 500: Database error during assignment",
         "operationId": "set_agent_policy_api_v1_agents__agent_id__policy__policy_id__post",
         "security": [{ "APIKeyHeader": [] }],
         "parameters": [
@@ -296,7 +296,7 @@
       "get": {
         "tags": ["agents"],
         "summary": "List agent's active controls",
-        "description": "List all protection controls active for an agent.\n\nControls are inherited from all control sets in the agent's assigned policy.\nReturns an empty list if the agent has no policy.\n\nArgs:\n    agent_id: UUID of the agent\n    db: Database session (injected)\n\nReturns:\n    AgentControlsResponse with list of controls (empty if no policy)\n\nRaises:\n    HTTPException 404: Agent not found",
+        "description": "List all protection controls active for an agent.\n\nControls are inherited from the agent's assigned policy.\nReturns an empty list if the agent has no policy.\n\nArgs:\n    agent_id: UUID of the agent\n    db: Database session (injected)\n\nReturns:\n    AgentControlsResponse with list of controls (empty if no policy)\n\nRaises:\n    HTTPException 404: Agent not found",
         "operationId": "list_agent_controls_api_v1_agents__agent_id__controls_get",
         "security": [{ "APIKeyHeader": [] }],
         "parameters": [
@@ -592,7 +592,7 @@
       "put": {
         "tags": ["controls"],
         "summary": "Create a new control",
-        "description": "Create a new control with a unique name and empty data.\n\nControls define protection logic and can be added to control sets.\nUse the PUT /{control_id}/data endpoint to set control configuration.\n\nArgs:\n    request: Control creation request with unique name\n    db: Database session (injected)\n\nReturns:\n    CreateControlResponse with the new control's ID\n\nRaises:\n    HTTPException 409: Control with this name already exists\n    HTTPException 500: Database error during creation",
+        "description": "Create a new control with a unique name and empty data.\n\nControls define protection logic and can be added to policies.\nUse the PUT /{control_id}/data endpoint to set control configuration.\n\nArgs:\n    request: Control creation request with unique name\n    db: Database session (injected)\n\nReturns:\n    CreateControlResponse with the new control's ID\n\nRaises:\n    HTTPException 409: Control with this name already exists\n    HTTPException 500: Database error during creation",
         "operationId": "create_control_api_v1_controls_put",
         "security": [{ "APIKeyHeader": [] }],
         "requestBody": {
@@ -758,7 +758,7 @@
       "delete": {
         "tags": ["controls"],
         "summary": "Delete a control",
-        "description": "Delete a control by ID.\n\nBy default, deletion fails if the control is associated with any control set.\nUse force=true to automatically dissociate and delete.\n\nArgs:\n    control_id: ID of the control to delete\n    force: If true, remove associations before deleting\n    db: Database session (injected)\n\nReturns:\n    DeleteControlResponse with success flag and list of dissociated control sets\n\nRaises:\n    HTTPException 404: Control not found\n    HTTPException 409: Control is in use (and force=false)\n    HTTPException 500: Database error during deletion",
+        "description": "Delete a control by ID.\n\nBy default, deletion fails if the control is associated with any policy.\nUse force=true to automatically dissociate and delete.\n\nArgs:\n    control_id: ID of the control to delete\n    force: If true, remove associations before deleting\n    db: Database session (injected)\n\nReturns:\n    DeleteControlResponse with success flag and list of dissociated policies\n\nRaises:\n    HTTPException 404: Control not found\n    HTTPException 409: Control is in use (and force=false)\n    HTTPException 500: Database error during deletion",
         "operationId": "delete_control_api_v1_controls__control_id__delete",
         "security": [{ "APIKeyHeader": [] }],
         "parameters": [
@@ -774,11 +774,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "If true, dissociate from all control sets before deleting. If false, fail if control is associated with any control set.",
+              "description": "If true, dissociate from all policies before deleting. If false, fail if control is associated with any policy.",
               "default": false,
               "title": "Force"
             },
-            "description": "If true, dissociate from all control sets before deleting. If false, fail if control is associated with any control set."
+            "description": "If true, dissociate from all policies before deleting. If false, fail if control is associated with any policy."
           }
         ],
         "responses": {
@@ -1388,8 +1388,11 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
             "title": "Name",
-            "description": "Unique control name"
+            "description": "Unique control name (letters, numbers, hyphens, underscores)"
           }
         },
         "type": "object",
@@ -1412,8 +1415,11 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]*$",
             "title": "Name",
-            "description": "Unique policy name"
+            "description": "Unique policy name (letters, numbers, hyphens, underscores)"
           }
         },
         "type": "object",
@@ -1636,7 +1642,7 @@
         "type": "object",
         "required": ["matched", "confidence"],
         "title": "EvaluatorResult",
-        "description": "Result from a control evaluator.\n\nWhen a plugin encounters an internal error (exception, missing plugin, etc.),\nthe system fails open (matched=False) but sets the `error` field to indicate\nthe evaluation did not complete successfully. Callers should check `error`\nto detect partial failures."
+        "description": "Result from a control evaluator.\n\nThe `error` field indicates plugin failures, NOT validation failures:\n- Set `error` for: plugin crashes, timeouts, missing dependencies, external service errors\n- Do NOT set `error` for: invalid input, syntax errors, schema violations, constraint failures\n\nWhen `error` is set, `matched` must be False (fail-open on plugin errors).\nWhen `error` is None, `matched` reflects the actual validation result.\n\nThis distinction allows:\n- Clients to distinguish \"data violated rules\" from \"plugin is broken\"\n- Observability systems to monitor plugin health separately from validation outcomes"
       },
       "EvaluatorSchema": {
         "properties": {

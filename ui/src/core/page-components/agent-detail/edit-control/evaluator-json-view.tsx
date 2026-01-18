@@ -1,8 +1,17 @@
-import { Group, SegmentedControl, Stack, Textarea } from "@mantine/core";
+import {
+  Box,
+  Group,
+  ScrollArea,
+  SegmentedControl,
+  Stack,
+  Textarea,
+} from "@mantine/core";
 
 import { JsonEditor } from "@/components/json-editor";
 
 import type { EvaluatorJsonViewProps, JsonViewMode } from "./types";
+
+const JSON_VIEW_HEIGHT = 400;
 
 export const EvaluatorJsonView = ({
   config,
@@ -33,29 +42,31 @@ export const EvaluatorJsonView = ({
       </Group>
 
       {jsonViewMode === "tree" ? (
-        <JsonEditor
-          data={config}
-          setData={onChange}
-          rootName='config'
-          restrictEdit={false}
-          restrictDelete={false}
-          restrictAdd={false}
-          collapse={false}
-          rootFontSize={12}
-          minHeight='400px'
-          maxHeight='500px'
-        />
+        <ScrollArea h={JSON_VIEW_HEIGHT} type='auto'>
+          <Box p='xs'>
+            <JsonEditor
+              data={config}
+              setData={onChange}
+              rootName='config'
+              restrictEdit={false}
+              restrictDelete={false}
+              restrictAdd={false}
+              collapse={false}
+              rootFontSize={12}
+            />
+          </Box>
+        </ScrollArea>
       ) : (
         <Textarea
           value={rawJsonText}
           onChange={(e) => onRawJsonTextChange(e.currentTarget.value)}
-          minRows={15}
-          maxRows={20}
-          autosize
+          rows={18}
           styles={{
             input: {
               fontFamily: "monospace",
               fontSize: 12,
+              height: JSON_VIEW_HEIGHT,
+              overflow: "auto",
             },
           }}
           error={rawJsonError}

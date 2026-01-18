@@ -14,27 +14,34 @@ import {
 import { useForm } from "@mantine/form";
 import { Button } from "@rungalileo/jupiter-ds";
 import { IconExternalLink } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { Control } from "@/core/api/types";
+import { isApiError } from "@/core/api/errors";
+import type { ProblemDetail } from "@/core/api/types";
+import { useAddControlToAgent } from "@/core/hooks/query-hooks/use-add-control-to-agent";
+import { useUpdateControl } from "@/core/hooks/query-hooks/use-update-control";
 
+import { ApiErrorAlert } from "./api-error-alert";
 import { ControlDefinitionForm } from "./control-definition-form";
-import { EvaluatorConfigForm } from "./evaluator-forms";
 import { EvaluatorJsonView } from "./evaluator-json-view";
+import { getPlugin } from "./evaluators";
 import type {
   ConfigViewMode,
   ControlDefinitionFormValues,
   EditControlProps,
   JsonViewMode,
-  ListFormValues,
-  RegexFormValues,
 } from "./types";
+import { applyApiErrorsToForms } from "./utils";
+
+const EVALUATOR_CONFIG_HEIGHT = 400;
 
 export const EditControl = ({
   opened,
   control,
+  agentId,
+  mode = "edit",
   onClose,
-  onSave,
+  onSuccess,
 }: EditControlProps) => {
   // View mode state
   const [configViewMode, setConfigViewMode] = useState<ConfigViewMode>("form");
@@ -42,133 +49,83 @@ export const EditControl = ({
   const [rawJsonText, setRawJsonText] = useState("");
   const [rawJsonError, setRawJsonError] = useState<string | null>(null);
 
-  // Form state using Mantine useForm
-  const form = useForm<ControlDefinitionFormValues>({
+  // API error state
+  const [apiError, setApiError] = useState<ProblemDetail | null>(null);
+  // Errors that couldn't be mapped to form fields (shown in Alert)
+  const [unmappedErrors, setUnmappedErrors] = useState<
+    Array<{ field: string | null; message: string }>
+  >([]);
+
+  // Mutation hooks
+  const updateControl = useUpdateControl();
+  const addControlToAgent = useAddControlToAgent();
+  const isCreating = mode === "create";
+  const isPending = isCreating
+    ? addControlToAgent.isPending
+    : updateControl.isPending;
+
+  // Track which plugin the evaluator form has been initialized for
+  const formInitializedForPlugin = useRef<string>("");
+
+  // Get plugin for this control
+  const pluginId = control?.control.evaluator.plugin || "";
+  const plugin = useMemo(() => getPlugin(pluginId), [pluginId]);
+
+  // Control definition form
+  const definitionForm = useForm<ControlDefinitionFormValues>({
     initialValues: {
       name: "",
       enabled: true,
-      appliesTo: "llm_call",
-      checkStage: "post",
-      selectorPath: "*",
-      actionDecision: "deny",
+      applies_to: "llm_call",
+      check_stage: "post",
+      selector_path: "*",
+      action_decision: "deny",
       local: false,
     },
     validate: {
-      name: (value) => {
-        if (!value || value.trim() === "") {
-          return "Control name is required";
-        }
-        return null;
-      },
-      selectorPath: (value) => {
-        if (!value || value.trim() === "") {
-          return "Selector path is required";
-        }
-        return null;
-      },
+      name: (value) => (!value?.trim() ? "Control name is required" : null),
+      selector_path: (value) =>
+        !value?.trim() ? "Selector path is required" : null,
     },
   });
 
-  // Evaluator config forms
-  const regexForm = useForm<RegexFormValues>({
-    initialValues: {
-      pattern: "^.*$",
-    },
-    validate: {
-      pattern: (value) => {
-        if (!value || value.trim() === "") {
-          return "Pattern is required";
-        }
-        try {
-          new RegExp(value);
-          return null;
-        } catch (error) {
-          return `Invalid regex pattern: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`;
-        }
-      },
-    },
+  // Evaluator config form - dynamically configured based on plugin
+  const evaluatorForm = useForm({
+    initialValues: plugin?.initialValues ?? {},
+    validate: plugin?.validate,
   });
 
-  const listForm = useForm<ListFormValues>({
-    initialValues: {
-      values: "",
-      logic: "any",
-      matchOn: "match",
-      matchMode: "exact",
-      caseSensitive: false,
-    },
-    validate: {
-      values: (value) => {
-        const trimmedValues = value.split("\n").filter((v) => v.trim() !== "");
-        if (trimmedValues.length === 0) {
-          return "At least one value is required";
-        }
-        return null;
-      },
-    },
-  });
-
-  // Get plugin ID from control
-  const pluginId = control?.control.evaluator.plugin || "";
-
-  // Helper to get evaluator config from the appropriate form
-  const getEvaluatorConfigFromForm = (): Record<string, unknown> => {
-    if (pluginId === "regex") {
-      return { pattern: regexForm.values.pattern };
-    } else if (pluginId === "list") {
-      const values = listForm.values.values
-        .split("\n")
-        .filter((v) => v.trim() !== "");
-      return {
-        values,
-        logic: listForm.values.logic,
-        match_on: listForm.values.matchOn,
-        match_mode: listForm.values.matchMode,
-        case_sensitive: listForm.values.caseSensitive,
-      };
+  // Get config from evaluator form
+  // If form hasn't been initialized for current plugin yet, use initial values to avoid crashes
+  const getEvaluatorConfig = () => {
+    if (!plugin) return {};
+    if (formInitializedForPlugin.current !== pluginId) {
+      return plugin.toConfig(plugin.initialValues);
     }
-    return {};
+    return plugin.toConfig(evaluatorForm.values);
   };
 
-  // Helper to sync form values to JSON
+  // Sync form to JSON
   const syncFormToJson = () => {
-    const config = getEvaluatorConfigFromForm();
-    setRawJsonText(JSON.stringify(config, null, 2));
+    setRawJsonText(JSON.stringify(getEvaluatorConfig(), null, 2));
     setRawJsonError(null);
   };
 
-  // Helper to sync JSON to form values
+  // Sync JSON to form
   const syncJsonToForm = (config: Record<string, unknown>) => {
-    if (pluginId === "regex") {
-      regexForm.setValues({
-        pattern: (config.pattern as string) || "^.*$",
-      });
-    } else if (pluginId === "list") {
-      const values = (config.values as string[]) || [];
-      listForm.setValues({
-        values: values.join("\n"),
-        logic: (config.logic as ListFormValues["logic"]) || "any",
-        matchOn: (config.match_on as ListFormValues["matchOn"]) || "match",
-        matchMode:
-          (config.match_mode as ListFormValues["matchMode"]) || "exact",
-        caseSensitive: (config.case_sensitive as boolean) || false,
-      });
+    if (plugin) {
+      evaluatorForm.setValues(plugin.fromConfig(config));
     }
   };
 
-  // Handle view mode changes
+  // Handle config view mode changes
   const handleConfigViewModeChange = (value: string) => {
     if (value === "json" && configViewMode === "form") {
-      // Switching from form to JSON - sync form values to JSON
       syncFormToJson();
     } else if (value === "form" && configViewMode === "json") {
-      // Switching from JSON to form - parse and sync to form
       if (jsonViewMode === "raw" && rawJsonText) {
         try {
-          const parsed = JSON.parse(rawJsonText);
-          syncJsonToForm(parsed);
+          syncJsonToForm(JSON.parse(rawJsonText));
           setRawJsonError(null);
         } catch {
           setRawJsonError("Invalid JSON. Please fix before switching to form.");
@@ -179,15 +136,13 @@ export const EditControl = ({
     setConfigViewMode(value as ConfigViewMode);
   };
 
+  // Handle JSON view mode changes
   const handleJsonViewModeChange = (mode: JsonViewMode) => {
     if (mode === "raw" && jsonViewMode === "tree") {
-      // Switching to raw - serialize current form config
       syncFormToJson();
     } else if (mode === "tree" && jsonViewMode === "raw") {
-      // Switching to tree - parse raw JSON and sync to form
       try {
-        const parsed = JSON.parse(rawJsonText);
-        syncJsonToForm(parsed);
+        syncJsonToForm(JSON.parse(rawJsonText));
         setRawJsonError(null);
       } catch {
         setRawJsonError("Invalid JSON. Please fix before switching views.");
@@ -197,7 +152,7 @@ export const EditControl = ({
     setJsonViewMode(mode);
   };
 
-  // Handle raw JSON text changes
+  // Handle raw JSON changes
   const handleRawJsonChange = (value: string) => {
     setRawJsonText(value);
     try {
@@ -208,147 +163,168 @@ export const EditControl = ({
     }
   };
 
-  // Update form fields when control changes
+  // Reset view mode and errors when plugin changes
   useEffect(() => {
-    if (control) {
-      form.setValues({
+    setConfigViewMode("form");
+    setJsonViewMode("tree");
+    setRawJsonText("");
+    setRawJsonError(null);
+    setApiError(null);
+    setUnmappedErrors([]);
+  }, [pluginId]);
+
+  // Load control data into forms
+  useEffect(() => {
+    if (control && plugin) {
+      definitionForm.setValues({
         name: control.name,
         enabled: control.control.enabled,
-        appliesTo: control.control.applies_to,
-        checkStage: control.control.check_stage,
-        selectorPath: control.control.selector.path ?? "*",
-        actionDecision: control.control.action.decision,
+        applies_to: control.control.applies_to,
+        check_stage: control.control.check_stage,
+        selector_path: control.control.selector.path ?? "*",
+        action_decision: control.control.action.decision,
         local: control.control.local,
       });
-
-      // Set evaluator config based on plugin type
-      const config = control.control.evaluator.config;
-      const plugin = control.control.evaluator.plugin;
-
-      if (plugin === "regex") {
-        regexForm.setValues({
-          pattern: (config.pattern as string) || "^.*$",
-        });
-      } else if (plugin === "list") {
-        const values = (config.values as string[]) || [];
-        listForm.setValues({
-          values: values.join("\n"),
-          logic: (config.logic as ListFormValues["logic"]) || "any",
-          matchOn: (config.match_on as ListFormValues["matchOn"]) || "match",
-          matchMode:
-            (config.match_mode as ListFormValues["matchMode"]) || "exact",
-          caseSensitive: (config.case_sensitive as boolean) || false,
-        });
-      }
+      evaluatorForm.setValues(
+        plugin.fromConfig(control.control.evaluator.config)
+      );
+      // Mark form as initialized for this plugin
+      formInitializedForPlugin.current = pluginId;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [control]);
+  }, [control, plugin, pluginId]);
 
-  const handleSubmit = (values: ControlDefinitionFormValues) => {
+  // Handle form submission
+  const handleSubmit = async (values: ControlDefinitionFormValues) => {
     if (!control) return;
 
-    // Get evaluator config based on view mode
-    let finalConfig: Record<string, unknown>;
-    if (configViewMode === "json") {
-      if (jsonViewMode === "raw") {
-        try {
-          finalConfig = JSON.parse(rawJsonText);
-        } catch {
-          setRawJsonError("Invalid JSON. Please fix before saving.");
-          return;
-        }
-      } else {
-        // Tree view - parse from rawJsonText if available, otherwise from form
-        try {
-          finalConfig = rawJsonText
-            ? JSON.parse(rawJsonText)
-            : getEvaluatorConfigFromForm();
-        } catch {
-          finalConfig = getEvaluatorConfigFromForm();
-        }
-      }
-    } else {
-      // Form view - validate and get from the appropriate form
-      let isValid = true;
-      if (pluginId === "regex") {
-        const validationResult = regexForm.validate();
-        isValid = !validationResult.hasErrors;
-      } else if (pluginId === "list") {
-        const validationResult = listForm.validate();
-        isValid = !validationResult.hasErrors;
-      }
+    // Clear previous errors
+    setApiError(null);
+    setUnmappedErrors([]);
+    definitionForm.clearErrors();
+    evaluatorForm.clearErrors();
 
-      if (!isValid) {
+    let finalConfig: Record<string, unknown>;
+
+    if (configViewMode === "json") {
+      try {
+        finalConfig = JSON.parse(rawJsonText || "{}");
+      } catch {
+        setRawJsonError("Invalid JSON. Please fix before saving.");
         return;
       }
-
-      finalConfig = getEvaluatorConfigFromForm();
+    } else {
+      // Validate evaluator form
+      const validation = evaluatorForm.validate();
+      if (validation.hasErrors) return;
+      finalConfig = getEvaluatorConfig();
     }
 
-    const updatedControl: Control = {
-      ...control,
-      name: values.name,
-      control: {
-        ...control.control,
-        enabled: values.enabled,
-        applies_to: values.appliesTo,
-        check_stage: values.checkStage,
-        selector: {
-          ...control.control.selector,
-          path: values.selectorPath,
-        },
-        action: { decision: values.actionDecision },
-        local: values.local,
-        evaluator: {
-          ...control.control.evaluator,
-          config: finalConfig,
-        },
-      },
+    const definition = {
+      ...control.control,
+      enabled: values.enabled,
+      applies_to: values.applies_to,
+      check_stage: values.check_stage,
+      selector: { ...control.control.selector, path: values.selector_path },
+      action: { decision: values.action_decision },
+      local: values.local,
+      evaluator: { ...control.control.evaluator, config: finalConfig },
     };
-    onSave(updatedControl);
+
+    try {
+      if (isCreating) {
+        // Create mode: use addControlToAgent
+        await addControlToAgent.mutateAsync({
+          agentId,
+          controlName: values.name,
+          definition,
+        });
+      } else {
+        // Edit mode: use updateControl
+        await updateControl.mutateAsync({
+          agentId,
+          controlId: control.id,
+          definition,
+        });
+      }
+      onSuccess?.();
+      onClose();
+    } catch (error) {
+      if (isApiError(error)) {
+        const problemDetail = error.problemDetail;
+        setApiError(problemDetail);
+
+        if (problemDetail.errors) {
+          if (configViewMode === "form") {
+            // Apply field-level errors to forms, capture unmapped ones
+            const unmapped = applyApiErrorsToForms(
+              problemDetail.errors,
+              definitionForm,
+              evaluatorForm
+            );
+            setUnmappedErrors(
+              unmapped.map((e) => ({ field: e.field, message: e.message }))
+            );
+          } else {
+            // In JSON view, show all errors in the main alert
+            setUnmappedErrors(
+              problemDetail.errors.map((e) => ({
+                field: e.field,
+                message: e.message,
+              }))
+            );
+          }
+        }
+      } else {
+        // Unexpected error
+        setApiError({
+          type: "about:blank",
+          title: "Error",
+          status: 500,
+          detail:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred",
+          error_code: "UNKNOWN_ERROR",
+          reason: "Unknown",
+        });
+      }
+    }
   };
+
+  // Render the plugin's form component
+  const FormComponent = plugin?.FormComponent;
 
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title='Configure Control'
+      title={isCreating ? "Create Control" : "Configure Control"}
       size='xl'
+      keepMounted={false}
       styles={{
-        body: {
-          maxHeight: "75vh",
-          overflow: "auto",
-        },
-        title: {
-          fontSize: "18px",
-          fontWeight: 600,
-        },
-        content: {
-          maxWidth: "1200px",
-          width: "90vw",
-        },
+        title: { fontSize: "18px", fontWeight: 600 },
+        content: { maxWidth: "1200px", width: "90vw" },
       }}
     >
-      <form onSubmit={form.onSubmit(handleSubmit)}>
-        {/* Control Name Field */}
+      <form onSubmit={definitionForm.onSubmit(handleSubmit)}>
         <TextInput
           label='Control name'
           placeholder='Enter control name'
           mb='lg'
           size='sm'
-          {...form.getInputProps("name")}
+          {...definitionForm.getInputProps("name")}
         />
 
         <Grid gutter='xl'>
-          {/* Left Column - Control Definition Fields */}
           <Grid.Col span={4}>
-            <ControlDefinitionForm form={form} />
+            <ScrollArea h={EVALUATOR_CONFIG_HEIGHT + 50} type='auto'>
+              <ControlDefinitionForm form={definitionForm} />
+            </ScrollArea>
           </Grid.Col>
 
-          {/* Right Column - Evaluator Config */}
           <Grid.Col span={8}>
-            <Stack gap='md' h='100%'>
-              {/* Header with view mode toggle */}
+            <Stack gap='md'>
               <Group justify='space-between' align='center'>
                 <Group gap='xs'>
                   <Text size='sm' fw={500}>
@@ -377,23 +353,24 @@ export const EditControl = ({
                 />
               </Group>
 
-              {/* Form View */}
               {configViewMode === "form" && (
                 <Paper withBorder radius='sm' p={16}>
-                  <ScrollArea mah={500} mih={400} type='auto'>
-                    <EvaluatorConfigForm
-                      pluginId={pluginId}
-                      regexForm={regexForm}
-                      listForm={listForm}
-                    />
+                  <ScrollArea h={EVALUATOR_CONFIG_HEIGHT} type='auto'>
+                    {FormComponent ? (
+                      <FormComponent form={evaluatorForm} />
+                    ) : (
+                      <Text c='dimmed' ta='center' py='xl'>
+                        No form available for this plugin. Use JSON view to
+                        configure.
+                      </Text>
+                    )}
                   </ScrollArea>
                 </Paper>
               )}
 
-              {/* JSON View */}
               {configViewMode === "json" && (
                 <EvaluatorJsonView
-                  config={getEvaluatorConfigFromForm()}
+                  config={getEvaluatorConfig()}
                   onChange={syncJsonToForm}
                   jsonViewMode={jsonViewMode}
                   onJsonViewModeChange={handleJsonViewModeChange}
@@ -406,6 +383,18 @@ export const EditControl = ({
           </Grid.Col>
         </Grid>
 
+        {/* API Error Alert */}
+        {apiError && (
+          <>
+            <Divider mt='xl' mb='md' />
+            <ApiErrorAlert
+              error={apiError}
+              unmappedErrors={unmappedErrors}
+              onClose={() => setApiError(null)}
+            />
+          </>
+        )}
+
         <Divider mt='xl' mb='md' />
 
         <Group justify='flex-end'>
@@ -417,8 +406,13 @@ export const EditControl = ({
           >
             Cancel
           </Button>
-          <Button variant='filled' type='submit' data-testid='save-button'>
-            Save
+          <Button
+            variant='filled'
+            type='submit'
+            data-testid='save-button'
+            loading={isPending}
+          >
+            {isCreating ? "Create" : "Save"}
           </Button>
         </Group>
       </form>

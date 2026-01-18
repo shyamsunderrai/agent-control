@@ -7,53 +7,48 @@ import type {
   ControlCheckStage,
 } from "@/core/api/types";
 
+// Re-export evaluator form types from plugins for convenience
+export type { JsonFormValues } from "./evaluators/json/types";
+export type { ListFormValues } from "./evaluators/list/types";
+export type {
+  Luna2FormValues,
+  Luna2Metric,
+  Luna2Operator,
+} from "./evaluators/luna2/types";
+export type { RegexFormValues } from "./evaluators/regex/types";
+export type { SqlFormValues } from "./evaluators/sql/types";
+
 export type ConfigViewMode = "form" | "json";
 export type JsonViewMode = "tree" | "raw";
 
 // Form values type for control definition
+// Uses snake_case to match API field names directly
 export interface ControlDefinitionFormValues {
   name: string;
   enabled: boolean;
-  appliesTo: ControlAppliesTo;
-  checkStage: ControlCheckStage;
-  selectorPath: string;
-  actionDecision: ControlActionDecision;
+  applies_to: ControlAppliesTo;
+  check_stage: ControlCheckStage;
+  selector_path: string;
+  action_decision: ControlActionDecision;
   local: boolean;
 }
 
-// Form values for regex evaluator
-export interface RegexFormValues {
-  pattern: string;
-}
-
-// Form values for list evaluator
-export interface ListFormValues {
-  values: string; // Stored as newline-separated string in form, converted to array on submit
-  logic: "any" | "all";
-  matchOn: "match" | "no_match";
-  matchMode: "exact" | "contains";
-  caseSensitive: boolean;
-}
+/** Mode for the EditControl modal */
+export type EditControlMode = "create" | "edit";
 
 export interface EditControlProps {
+  /** Whether the modal is open */
   opened: boolean;
+  /** The control to edit/create template */
   control: Control | null;
+  /** Agent ID for invalidating queries on save */
+  agentId: string;
+  /** Mode: 'create' for new control, 'edit' for existing */
+  mode?: EditControlMode;
+  /** Callback when modal is closed */
   onClose: () => void;
-  onSave: (data: Control) => void;
-}
-
-export interface RegexFormProps {
-  form: UseFormReturnType<RegexFormValues>;
-}
-
-export interface ListFormProps {
-  form: UseFormReturnType<ListFormValues>;
-}
-
-export interface EvaluatorConfigFormProps {
-  pluginId: string;
-  regexForm: UseFormReturnType<RegexFormValues>;
-  listForm: UseFormReturnType<ListFormValues>;
+  /** Callback when save succeeds */
+  onSuccess?: () => void;
 }
 
 export interface EvaluatorJsonViewProps {
