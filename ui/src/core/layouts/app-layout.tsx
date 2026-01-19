@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   AppShell,
   Box,
   Divider,
@@ -22,7 +21,6 @@ import { useRouter } from "next/router";
 import { type ReactNode, useState } from "react";
 
 import { Logo } from "@/components/icons/galileo-logos.constants";
-import ToggleMenu from "@/components/icons/toggle-menu";
 
 // import { useAgentsInfinite } from "@/core/hooks/query-hooks/use-agents-infinite";
 import classes from "./app-layout.module.css";
@@ -171,15 +169,15 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Stack gap={0} h='100%' justify='space-between'>
           {/* Top Section */}
           <Stack gap={0}>
-            <Stack px='md' mt='xs'>
-              <Group h='100%' justify='space-between'>
-                <Group gap='xs'>
+            <Stack px='md'>
+              <Group h='50px' justify='space-between' align="center">
+                <Group gap='xs' >
                   <Logo />
                   <Text size='md' fw={600}>
-                    Galileo
+                    Agent Control
                   </Text>
                 </Group>
-                <ActionIcon
+                {/* <ActionIcon
                   onClick={() => setDesktopOpened(!desktopOpened)}
                   variant='subtle'
                   color='gray'
@@ -187,12 +185,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                   visibleFrom='sm'
                   disabled
                 >
-                  <ToggleMenu />
-                </ActionIcon>
+                  <ToggleMenu /> */}
+                {/* </ActionIcon> */}
               </Group>
             </Stack>
 
-            <Divider mt='xs' className={classes.divider} />
+            <Divider className={classes.divider} />
 
             <Stack gap={4} p='md'>
               <NavItem

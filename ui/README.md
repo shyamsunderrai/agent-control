@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agent Control UI
 
-## Getting Started
+Next.js dashboard for managing Agent Control agents, controls, and policies. Runs on port 4000.
 
-First, run the development server:
+## Tech Stack
+
+- **Next.js 15** (Pages Router) + **React 19** + **TypeScript**
+- **Mantine 7** + **Jupiter DS** (Galileo's design system)
+- **TanStack Query** for server state management
+- **openapi-fetch** with auto-generated types from the server's OpenAPI spec
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev              # starts on http://localhost:4000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To regenerate API types from a running server:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm fetch-api-types  # fetches from http://localhost:8000/openapi.json
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Folder Structure
 
-## Learn More
+```
+src/
+├── pages/                 # Next.js routes
+│   ├── _app.tsx           # App wrapper (providers, global styles)
+│   ├── index.tsx          # Home page (agents list)
+│   └── agents/[id].tsx    # Agent detail page
+├── core/
+│   ├── api/               # API client + auto-generated types
+│   │   ├── client.ts      # openapi-fetch client with typed methods
+│   │   ├── generated/     # Auto-generated from OpenAPI spec
+│   │   └── types.ts       # Re-exported type aliases
+│   ├── hooks/query-hooks/ # TanStack Query hooks (useAgent, useAgents, etc.)
+│   ├── layouts/           # App shell with sidebar navigation
+│   ├── page-components/   # Page-level components (home, agent-detail)
+│   ├── providers/         # React context providers (QueryProvider)
+│   └── types/             # Shared TypeScript types
+├── components/            # Reusable UI components (icons, json-editor)
+└── styles/                # Global CSS, fonts
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Key Patterns
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **API types are auto-generated** — run `pnpm fetch-api-types` after server API changes
+- **Query hooks** wrap the `api` client and return typed data (see `core/hooks/query-hooks/`)
+- **Page components** contain the actual UI logic; `pages/` files are thin wrappers that apply layouts
+- **Evaluator forms** follow a registry pattern in `core/page-components/agent-detail/edit-control/evaluators/` — each evaluator type (json, sql, regex, etc.) has its own folder with `form.tsx`, `types.ts`, and `index.ts`

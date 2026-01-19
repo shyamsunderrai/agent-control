@@ -42,5 +42,3 @@ next-env.d.ts
 
 CLAUDE.md
 .claude
-
-src/core/api/generated/*

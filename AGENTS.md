@@ -27,6 +27,7 @@ Forwarded targets:
 - `server/`: FastAPI server (`server/src/agent_control_server/`)
 - `sdks/python/`: Python SDK — uses engine for evaluation (`sdks/python/src/agent_control/`)
 - `plugins/`: plugin implementations (`plugins/src/agent_control_plugins/`)
+- `ui/`: Nextjs based web app to manage agent controls 
 - `examples/`: runnable examples (ruff has relaxed import rules here)
 
 ## Code conventions

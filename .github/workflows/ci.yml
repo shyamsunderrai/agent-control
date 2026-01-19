@@ -76,10 +76,6 @@ jobs:
         working-directory: ./ui
         run: pnpm install --frozen-lockfile
 
-      - name: Generate API types
-        working-directory: ./ui
-        run: pnpm run fetch-api-types:ci
-
       - name: Lint
         working-directory: ./ui
         run: pnpm run lint

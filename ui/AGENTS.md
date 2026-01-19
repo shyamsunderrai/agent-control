@@ -1,0 +1,75 @@
+# UI: instructions for coding agents
+
+Next.js 15 app (Pages Router) with React 19, TypeScript, Mantine 7, and TanStack Query.
+
+## Quick commands
+
+```bash
+pnpm install          # install deps
+pnpm dev              # dev server on http://localhost:4000
+pnpm build            # production build
+pnpm lint             # lint
+pnpm lint:fix         # lint + auto-fix
+pnpm typecheck        # TypeScript check
+pnpm fetch-api-types  # regenerate API types from server (must be running on :8000)
+```
+
+## Code conventions
+
+- **TypeScript**: strict mode, no `any` unless unavoidable
+- **Imports**: use `@/` alias (maps to `src/`), keep imports sorted (eslint auto-fixes)
+- **Components**: functional components only, use named exports
+- **Styling**: Mantine components + Jupiter DS; avoid inline styles, use Mantine's `style` props or CSS modules
+- **State**: server state via TanStack Query hooks; local state via `useState`
+
+### Jupiter DS (Galileo's design system)
+- `@rungalileo/jupiter-ds` — Galileo's component library built on top of Mantine
+- Provides themed components: `Button`, `Table`, `Switch`, etc.
+- `JupiterThemeProvider` wraps the app in `_app.tsx` (inside MantineProvider)
+- **When to use**: prefer Jupiter DS components over Mantine equivalents when available — they have Galileo's styling baked in
+- **Fallback**: for components not in Jupiter DS, use Mantine directly — they're compatible since Jupiter DS extends Mantine
+
+## Key patterns
+
+### API layer (`core/api/`)
+- Types are **auto-generated** from OpenAPI — run `pnpm fetch-api-types` after server changes
+- `client.ts` exports typed `api` object with namespaced methods (`api.agents.get()`, `api.controls.create()`, etc.)
+- Never call `apiClient` directly in components; use the `api` wrapper or query hooks
+- **Best practice**: always derive types from `generated/api-types.ts` — this keeps types flowing from backend to frontend for tight integration; avoid duplicating or manually defining types that already exist in the generated file
+- **Debugging tip**: if you hit type errors related to API responses/requests, regenerate types first (`pnpm fetch-api-types`) — they may be stale
+
+### Query hooks (`core/hooks/query-hooks/`)
+- One hook per query/mutation (e.g., `useAgent`, `useCreateControl`)
+- Hooks wrap `api` calls and return typed TanStack Query results
+- Query keys follow pattern: `["resource", id]` or `["resource", "list", params]`
+
+### Page structure
+- `pages/` — thin route files that apply layouts and import page components
+- `core/page-components/` — actual page UI logic lives here
+- `core/layouts/` — app shell, sidebar navigation
+
+### Evaluator forms (`core/page-components/agent-detail/edit-control/evaluators/`)
+- Each evaluator type has its own folder: `json/`, `sql/`, `regex/`, `list/`, `luna2/`
+- Each folder exports: `form.tsx` (React component), `types.ts` (form types), `index.ts` (re-exports)
+- Registry in `evaluators/index.ts` maps evaluator names to form components
+
+## Common changes
+
+### Add a new evaluator form
+1. Create folder in `core/page-components/agent-detail/edit-control/evaluators/<name>/`
+2. Add `types.ts` with form field types
+3. Add `form.tsx` with the form component (use Mantine form components)
+4. Add `index.ts` re-exporting form and types
+5. Register in `evaluators/index.ts`
+
+### Add a new API endpoint integration
+1. Run `pnpm fetch-api-types` to get new types
+2. Add method to `api` object in `core/api/client.ts`
+3. Add query hook in `core/hooks/query-hooks/`
+4. Use hook in component
+
+### Add a new page
+1. Create route file in `pages/` (e.g., `pages/settings.tsx`)
+2. Create page component in `core/page-components/<name>/`
+3. Apply layout via `getLayout` pattern (see existing pages)
+

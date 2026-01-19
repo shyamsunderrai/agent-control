@@ -9,8 +9,7 @@
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "typecheck": "tsc --noEmit",
-    "fetch-api-types": "openapi-typescript http://localhost:8000/openapi.json -o src/core/api/generated/api-types.ts",
-    "fetch-api-types:ci": "openapi-typescript openapi.json -o src/core/api/generated/api-types.ts"
+    "fetch-api-types": "openapi-typescript http://localhost:8000/openapi.json -o src/core/api/generated/api-types.ts"
   },
   "dependencies": {
     "@mantine/code-highlight": "7.17.5",
@@ -32,12 +31,9 @@
     "date-fns": "4.1.0",
     "json-edit-react": "^1.29.0",
     "next": "15.4.10",
-    "next-auth": "4.24.12",
     "openapi-fetch": "0.14.0",
     "react": "^19.1.4",
-    "react-dom": "^19.1.4",
-    "zod": "3.24.3",
-    "zustand": "5.0.3"
+    "react-dom": "^19.1.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
