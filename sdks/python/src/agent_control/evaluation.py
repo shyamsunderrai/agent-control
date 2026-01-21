@@ -91,7 +91,7 @@ async def check_evaluation(
             payload=payload,
             check_stage=check_stage
         )
-        request_payload = request.to_dict()
+        request_payload = request.model_dump(mode="json")
     else:
         # Fallback for when models aren't available
         payload_dict = {

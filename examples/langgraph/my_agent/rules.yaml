@@ -1,4 +1,4 @@
-# Agent Protection Rules Configuration
+# Agent Control Rules Configuration
 # 
 # This file defines fine-grained controls that can be applied at different
 # steps in your agent's execution flow.

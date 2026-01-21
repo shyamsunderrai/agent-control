@@ -1,28 +1,28 @@
 """
-LangGraph Agent with Agent Protect integration.
+LangGraph Agent with Agent Control integration.
 
 This module demonstrates how to build a LangGraph agent that uses
-Agent Protect to validate user inputs for safety before processing.
+Agent Control to validate user inputs for safety before processing.
 """
 
 import asyncio
 import os
+import uuid
 from typing import Annotated, TypedDict
 
+from agent_control import Agent, AgentControlClient, LlmCall, agents, evaluation
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 
-# Optional: Import agent_control if available
-try:
-    import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../sdks/python/src"))
-    from agent_control import AgentControlClient
-    AGENT_PROTECT_AVAILABLE = True
-except ImportError:
-    AGENT_PROTECT_AVAILABLE = False
-    print("Warning: Agent Protect not available. Safety checks will be skipped.")
+
+AGENT_ID = "langgraph-demo-agent"
+AGENT_NAME = "LangGraph Demo Agent"
+AGENT_DESCRIPTION = "LangGraph agent with Agent Control safety checks"
+SERVER_URL = os.getenv("AGENT_CONTROL_URL", "http://localhost:8000")
+_AGENT_UUID = uuid.uuid5(uuid.NAMESPACE_DNS, AGENT_ID)
+_AGENT_REGISTERED = False
 
 
 class AgentState(TypedDict):
@@ -39,9 +39,25 @@ class AgentState(TypedDict):
     safety_reason: str
 
 
+async def _ensure_agent_registered() -> None:
+    """Register the demo agent with the Agent Control server once."""
+    global _AGENT_REGISTERED
+    if _AGENT_REGISTERED:
+        return
+
+    async with AgentControlClient(base_url=SERVER_URL) as client:
+        agent = Agent(
+            agent_id=_AGENT_UUID,
+            agent_name=AGENT_NAME,
+            agent_description=AGENT_DESCRIPTION,
+        )
+        await agents.register_agent(client, agent, tools=[])
+        _AGENT_REGISTERED = True
+
+
 async def safety_check_node(state: AgentState) -> dict:
     """
-    Check if the user's input is safe using Agent Protect.
+    Check if the user's input is safe using Agent Control.
 
     Args:
         state: The current agent state
@@ -61,47 +77,27 @@ async def safety_check_node(state: AgentState) -> dict:
 
     user_content = last_message.content
 
-    # If Agent Protect is not available, skip check
-    if not AGENT_PROTECT_AVAILABLE:
-        return {
-            "safety_check_passed": True,
-            "safety_reason": "Agent Protect not configured"
-        }
-
-    # Check with Agent Control server
     try:
-        import uuid as uuid_module
+        await _ensure_agent_registered()
 
-        agent_control_url = os.getenv("AGENT_CONTROL_URL", "http://localhost:8000")
-        # Generate a deterministic agent UUID for this demo
-        agent_uuid = str(uuid_module.uuid5(uuid_module.NAMESPACE_DNS, "langgraph-demo-agent"))
-
-        async with AgentControlClient(base_url=agent_control_url) as client:
-            # Call the evaluation endpoint
-            response = await client.http_client.post(
-                "/api/v1/evaluation",
-                json={
-                    "agent_uuid": agent_uuid,
-                    "payload": {"input": str(user_content)},
-                    "check_stage": "pre"
-                }
+        async with AgentControlClient(base_url=SERVER_URL) as client:
+            payload = LlmCall(input=str(user_content))
+            result = await evaluation.check_evaluation(
+                client=client,
+                agent_uuid=_AGENT_UUID,
+                payload=payload,
+                check_stage="pre",
             )
-            response.raise_for_status()
-            result = response.json()
 
-            is_safe = result.get("is_safe", True)
-            matches = result.get("matches", [])
-            reason = "Content passed safety checks"
+        is_safe = result.is_safe
+        reason = result.reason or "Content passed safety checks"
+        if not is_safe and result.matches:
+            reason = result.matches[0].result.message or "Content failed safety checks"
 
-            if not is_safe and matches:
-                # Get the reason from the first match
-                first_match = matches[0]
-                reason = first_match.get("result", {}).get("message", "Content failed safety checks")
-
-            return {
-                "safety_check_passed": is_safe,
-                "safety_reason": reason
-            }
+        return {
+            "safety_check_passed": is_safe,
+            "safety_reason": reason,
+        }
     except Exception as e:
         print(f"Safety check error: {e}")
         # On error, allow but log
@@ -246,7 +242,7 @@ if __name__ == "__main__":
         from dotenv import load_dotenv
         load_dotenv()
 
-        print("🤖 LangGraph Agent with Agent Protect")
+        print("🤖 LangGraph Agent with Agent Control")
         print("=" * 50)
         print()
 

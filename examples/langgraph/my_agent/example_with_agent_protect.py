@@ -7,12 +7,6 @@ This demonstrates the SDK approach for server-side control evaluation:
 """
 
 import asyncio
-import sys
-from pathlib import Path
-
-# Add sdks to path
-sdk_path = Path(__file__).parents[3] / "sdks" / "python" / "src"
-sys.path.insert(0, str(sdk_path))
 
 import agent_control
 from agent_control import control, ControlViolationError

@@ -1,7 +1,7 @@
 """
-LangGraph Agent with Agent Protect integration.
+LangGraph Agent with Agent Control integration.
 
-This package provides a complete example of integrating Agent Protect
+This package provides a complete example of integrating Agent Control
 with a LangGraph agent for safe AI interactions.
 """
 

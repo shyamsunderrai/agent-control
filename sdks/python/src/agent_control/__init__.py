@@ -220,6 +220,13 @@ def init(
     """
     global _current_agent, _control_engine, _client, _server_controls
 
+    if not agent_id:
+         raise ValueError(
+            "The 'agent_id' argument is required for initialization.\n"
+            "Please provide a unique string identifier for your agent, e.g.:\n"
+            '    agent_control.init(agent_name="my-agent", agent_id="my-agent-v1")'
+        )
+
     # Create agent instance with metadata
     # Convert agent_id to UUID (accept UUID string or generate from regular string)
     try:
