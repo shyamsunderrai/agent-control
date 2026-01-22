@@ -53,6 +53,9 @@ API_PREFIX=/api
 AGENT_CONTROL_API_KEY_ENABLED=true
 AGENT_CONTROL_API_KEYS=your-api-key-here
 AGENT_CONTROL_ADMIN_API_KEYS=your-admin-key-here
+
+# Prometheus metrics
+PROMETHEUS_METRICS_PREFIX=agent_control_server
 ```
 
 ## Authentication
@@ -119,6 +122,15 @@ AGENT_CONTROL_API_KEY_ENABLED=false
 GET /health
 ```
 
+### Metrics
+
+```bash
+GET /metrics
+```
+
+Prometheus metric names are prefixed with `PROMETHEUS_METRICS_PREFIX` (default:
+`agent_control_server`).
+
 Response:
 ```json
 {
@@ -176,4 +188,3 @@ uv run ruff check src/
 ## Deployment
 
 See [DEPLOYMENT.md](../DEPLOYMENT.md) for detailed deployment instructions.
-

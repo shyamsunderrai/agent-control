@@ -10,6 +10,7 @@ from agent_control_models import HealthResponse
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette_exporter import PrometheusMiddleware, handle_metrics
 
 from .auth import require_api_key
 from .config import settings
@@ -28,6 +29,40 @@ from .errors import (
 from .logging_utils import configure_logging
 
 logger = logging.getLogger(__name__)
+
+METRICS_PATH = "/metrics"
+PROMETHEUS_BUCKETS = [
+    0.1,
+    0.5,
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    30.0,
+    60.0,
+    float("inf"),
+]
+PROMETHEUS_SKIP_PATHS = [
+    METRICS_PATH,
+    "/health",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+]
+
+
+def add_prometheus_metrics(app: FastAPI, metrics_prefix: str) -> None:
+    """Configure Prometheus metrics for the FastAPI app."""
+    app.add_middleware(
+        PrometheusMiddleware,
+        app_name="agent-control-server",
+        prefix=metrics_prefix,
+        group_paths=True,
+        filter_unhandled_paths=True,
+        buckets=PROMETHEUS_BUCKETS,
+        skip_paths=PROMETHEUS_SKIP_PATHS,
+    )
+    app.add_route(METRICS_PATH, handle_metrics)
 
 
 @asynccontextmanager
@@ -73,6 +108,8 @@ Agent → Policy → Control(s)
     version="0.1.0",
     lifespan=lifespan,
 )
+
+add_prometheus_metrics(app, settings.prometheus_metrics_prefix)
 
 # Configure CORS
 app.add_middleware(

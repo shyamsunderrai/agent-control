@@ -114,6 +114,9 @@ class Settings(BaseSettings):
     api_version: str = "v1"
     api_prefix: str = "/api"
 
+    # Prometheus metrics settings
+    prometheus_metrics_prefix: str = "agent_control_server"
+
     # CORS settings
     cors_origins: list[str] | str = "*"
     allow_methods: list[str] = ["*"]
@@ -131,4 +134,3 @@ class Settings(BaseSettings):
 auth_settings = AuthSettings()
 db_config = AgentControlServerDatabaseConfig()
 settings = Settings()
-
