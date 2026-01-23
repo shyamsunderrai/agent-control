@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.1.4 (2026-01-23)
+
+### Chores
+
+- **infra**: Rename project from agent-control to agent-control-sdk
+  ([#74](https://github.com/rungalileo/agent-control/pull/74),
+  [`7a16463`](https://github.com/rungalileo/agent-control/commit/7a1646341d4b4fc4edc1ab67a202c14ffb485934))
+
+
 ## v1.1.3 (2026-01-23)
 
 ### Chores
