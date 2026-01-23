@@ -1,5 +1,5 @@
 [project]
-name = "agent-control-sdk"
+name = "agent-control"
 version = "1.1.2"
 description = "Python SDK for Agent Control - protect your AI agents with controls"
 requires-python = ">=3.12"

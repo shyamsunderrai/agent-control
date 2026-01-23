@@ -70,4 +70,3 @@ tag_format = "v{version}"
 # feat = minor, fix/perf/refactor = patch, breaking (!) = major
 allowed_tags = ["feat", "fix", "perf", "chore", "docs", "style", "refactor", "test", "ci"]
 patch_tags = ["fix", "perf", "chore", "refactor"]
-
