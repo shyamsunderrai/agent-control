@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v2.0.1 (2026-01-26)
+
+### Bug Fixes
+
+- **docs**: Clean up Protect ([#76](https://github.com/rungalileo/agent-control/pull/76),
+  [`99c16fd`](https://github.com/rungalileo/agent-control/commit/99c16fd8ed6620363f919818ebe4083f1489ba1c))
+
+
 ## v2.0.0 (2026-01-24)
 
 ### Features
