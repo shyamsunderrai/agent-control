@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.1.0 (2026-01-27)
+
+### Features
+
+- **server**: Add evaluator config store
+  ([#78](https://github.com/rungalileo/agent-control/pull/78),
+  [`cc14aa6`](https://github.com/rungalileo/agent-control/commit/cc14aa68391fd7fd4a187364a0a9a9fe712129fe))
+
+
 ## v2.0.1 (2026-01-26)
 
 ### Bug Fixes
