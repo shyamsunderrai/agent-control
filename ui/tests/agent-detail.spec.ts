@@ -51,15 +51,15 @@ test.describe("Agent Detail Page", () => {
     }
   });
 
-  test("displays control badges for applies_to and check_stage", async ({ mockedPage }) => {
+  test("displays control badges for step types and stages", async ({ mockedPage }) => {
     await mockedPage.goto(agentUrl);
 
     // Wait for controls to load
     await expect(mockedPage.getByRole("table")).toBeVisible();
 
-    // Check that badges are displayed (LLM Call or Tool Call) - use first() since multiple rows may have same badge
-    await expect(mockedPage.getByText("LLM Call").first()).toBeVisible();
-    await expect(mockedPage.getByText("Tool Call").first()).toBeVisible();
+    // Check that badges are displayed (LLM or Tool) - use first() since multiple rows may have same badge
+    await expect(mockedPage.getByText("LLM").first()).toBeVisible();
+    await expect(mockedPage.getByText("Tool").first()).toBeVisible();
 
     // Check stage badges (Pre or Post) - use first() since multiple rows may have same badge
     await expect(mockedPage.getByText("Pre").first()).toBeVisible();
@@ -179,6 +179,50 @@ test.describe("Agent Detail Page", () => {
     // Edit modal should be visible
     await expect(mockedPage.getByRole("heading", { name: "Configure Control" })).toBeVisible();
   });
+
+  test("edit control modal pre-fills scope and execution fields", async ({ mockedPage }) => {
+    await mockedPage.goto(agentUrl);
+
+    // Wait for controls to load
+    await expect(mockedPage.getByRole("table")).toBeVisible();
+
+    const targetRow = mockedPage.locator("tr", { hasText: "SQL Injection Guard" });
+    const editButton = targetRow.locator('button:has(svg[class*="icon-pencil"])');
+
+    if ((await editButton.count()) === 0) {
+      await targetRow.locator("button").last().click();
+    } else {
+      await editButton.click();
+    }
+
+    await expect(
+      mockedPage.getByRole("heading", { name: "Configure Control" })
+    ).toBeVisible();
+
+    const modal = mockedPage.getByRole("dialog");
+
+    await expect(modal.getByText("Step types")).toBeVisible();
+    await expect(modal.getByText("Stages")).toBeVisible();
+    await expect(modal.getByText("Step names")).toBeVisible();
+    await expect(modal.getByText("Step name regex")).toBeVisible();
+    await expect(modal.getByText("Execution environment")).toBeVisible();
+
+    await expect(modal.getByText("tool", { exact: true })).toBeVisible();
+    await expect(
+      modal.getByText("Pre (before execution)", { exact: true })
+    ).toBeVisible();
+    await expect(modal.getByPlaceholder("search_db, fetch_user")).toHaveValue(
+      "database_query"
+    );
+    await expect(modal.getByPlaceholder("^db_.*")).toHaveValue("^db_.*");
+    const executionLabel = modal.getByText("Execution environment", { exact: true });
+    await executionLabel.scrollIntoViewIfNeeded();
+    await expect(executionLabel).toBeVisible();
+
+    const executionField = executionLabel.locator("..").locator("..");
+    const executionInput = executionField.getByRole("textbox");
+    await expect(executionInput).toHaveValue("Server");
+  });
 });
 
 test.describe("Agent Detail - Empty State", () => {
@@ -214,4 +258,3 @@ test.describe("Agent Detail - Empty State", () => {
     await expect(page.getByTestId("add-control-button").first()).toBeVisible();
   });
 });
-

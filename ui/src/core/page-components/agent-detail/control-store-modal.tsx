@@ -352,16 +352,18 @@ export function ControlStoreModal({
       >
         <ErrorBoundary variant="modal">
           {selectedPlugin && (
-            <EditControlContent
+                <EditControlContent
               control={{
                 id: 0,
                 name: selectedPlugin.name,
                 control: {
                   description: selectedPlugin.description,
                   enabled: true,
-                  local: false,
-                  applies_to: "llm_call" as const,
-                  check_stage: "post" as const,
+                  execution: "server",
+                  scope: {
+                    step_types: ["llm"],
+                    stages: ["post"],
+                  },
                   selector: {
                     path: "*",
                   },

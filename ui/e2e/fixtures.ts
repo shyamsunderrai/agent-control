@@ -21,7 +21,7 @@ const agentsList: AgentSummary[] = [
     agent_name: "Customer Support Bot",
     policy_id: 1,
     created_at: "2024-01-01T00:00:00Z",
-    tool_count: 5,
+    step_count: 5,
     evaluator_count: 2,
     active_controls_count: 3,
   },
@@ -30,7 +30,7 @@ const agentsList: AgentSummary[] = [
     agent_name: "Data Analysis Agent",
     policy_id: 2,
     created_at: "2024-01-02T00:00:00Z",
-    tool_count: 3,
+    step_count: 3,
     evaluator_count: 1,
     active_controls_count: 2,
   },
@@ -39,7 +39,7 @@ const agentsList: AgentSummary[] = [
     agent_name: "Code Review Assistant",
     policy_id: 3,
     created_at: "2024-01-03T00:00:00Z",
-    tool_count: 8,
+    step_count: 8,
     evaluator_count: 4,
     active_controls_count: 5,
   },
@@ -65,7 +65,7 @@ const agentResponse: GetAgentResponse = {
     agent_version: "1.0.0",
     agent_metadata: null,
   },
-  tools: [],
+  steps: [],
   evaluators: [],
 };
 
@@ -76,10 +76,9 @@ const controlsList: Control[] = [
     control: {
       description: "Detects and masks personally identifiable information",
       enabled: true,
-      local: false,
-      applies_to: "llm_call",
-      check_stage: "post",
-      selector: { path: "*" },
+      execution: "server",
+      scope: { step_types: ["llm"], stages: ["post"] },
+      selector: { path: "output" },
       evaluator: {
         plugin: "regex",
         config: { pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b" },
@@ -94,10 +93,13 @@ const controlsList: Control[] = [
     control: {
       description: "Prevents SQL injection attacks",
       enabled: true,
-      local: false,
-      applies_to: "tool_call",
-      check_stage: "pre",
-      selector: { path: "arguments.query", tool_names: ["database_query"] },
+      execution: "server",
+      scope: {
+        step_types: ["tool"],
+        step_names: ["database_query"],
+        stages: ["pre"],
+      },
+      selector: { path: "input.query" },
       evaluator: {
         plugin: "sql",
         config: { mode: "safe" },
@@ -112,9 +114,8 @@ const controlsList: Control[] = [
     control: {
       description: "Limits API call frequency",
       enabled: false,
-      local: false,
-      applies_to: "llm_call",
-      check_stage: "pre",
+      execution: "server",
+      scope: { step_types: ["llm"], stages: ["pre"] },
       selector: { path: "*" },
       evaluator: {
         plugin: "list",

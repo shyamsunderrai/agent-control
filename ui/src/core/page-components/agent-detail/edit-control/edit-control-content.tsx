@@ -88,11 +88,13 @@ export const EditControlContent = ({
     initialValues: {
       name: "",
       enabled: true,
-      applies_to: "llm_call",
-      check_stage: "post",
+      step_types: ["llm"],
+      stages: ["post"],
+      step_names: "",
+      step_name_regex: "",
       selector_path: "*",
       action_decision: "deny",
-      local: false,
+      execution: "server",
     },
     validate: {
       name: (value) => (!value?.trim() ? "Control name is required" : null),
@@ -188,14 +190,17 @@ export const EditControlContent = ({
   // Load control data into forms
   useEffect(() => {
     if (control && plugin) {
+      const scope = control.control.scope ?? {};
       definitionForm.setValues({
         name: control.name,
         enabled: control.control.enabled,
-        applies_to: control.control.applies_to,
-        check_stage: control.control.check_stage,
+        step_types: scope.step_types ?? [],
+        stages: scope.stages ?? [],
+        step_names: (scope.step_names ?? []).join(", "),
+        step_name_regex: scope.step_name_regex ?? "",
         selector_path: control.control.selector.path ?? "*",
         action_decision: control.control.action.decision,
-        local: control.control.local,
+        execution: control.control.execution ?? "server",
       });
       evaluatorForm.setValues(
         plugin.fromConfig(control.control.evaluator.config)
@@ -230,14 +235,27 @@ export const EditControlContent = ({
       finalConfig = getEvaluatorConfig();
     }
 
+    const stepTypes = values.step_types
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const stepNames = values.step_names
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const stepNameRegex = values.step_name_regex.trim();
+
     const definition = {
       ...control.control,
       enabled: values.enabled,
-      applies_to: values.applies_to,
-      check_stage: values.check_stage,
+      execution: values.execution,
+      scope: {
+        step_types: stepTypes.length > 0 ? stepTypes : undefined,
+        step_names: stepNames.length > 0 ? stepNames : undefined,
+        step_name_regex: stepNameRegex || undefined,
+        stages: values.stages.length > 0 ? values.stages : undefined,
+      },
       selector: { ...control.control.selector, path: values.selector_path },
       action: { decision: values.action_decision },
-      local: values.local,
       evaluator: { ...control.control.evaluator, config: finalConfig },
     };
 
@@ -417,4 +435,3 @@ export const EditControlContent = ({
     </form>
   );
 };
-

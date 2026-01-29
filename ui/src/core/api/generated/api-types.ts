@@ -16,7 +16,7 @@ export interface paths {
          * @description List all registered agents with cursor-based pagination.
          *
          *     Returns a summary of each agent including ID, name, policy assignment,
-         *     and counts of registered tools and evaluators.
+         *     and counts of registered steps and evaluators.
          *
          *     Args:
          *         cursor: Optional cursor for pagination (UUID of last agent from previous page)
@@ -46,18 +46,18 @@ export interface paths {
         put?: never;
         /**
          * Initialize or update an agent
-         * @description Register a new agent or update an existing agent's tools and metadata.
+         * @description Register a new agent or update an existing agent's steps and metadata.
          *
          *     This endpoint is idempotent:
          *     - If the agent name doesn't exist, creates a new agent
-         *     - If the agent name exists with the same UUID, updates tool schemas
+         *     - If the agent name exists with the same UUID, updates step schemas
          *     - If the agent name exists with a different UUID, returns 409 Conflict
          *
-         *     Tool versioning: When tool schemas change (arguments or output_schema),
+         *     Step versioning: When step schemas change (input_schema or output_schema),
          *     a new version is created automatically.
          *
          *     Args:
-         *         request: Agent metadata and tool schemas
+         *         request: Agent metadata and step schemas
          *         db: Database session (injected)
          *
          *     Returns:
@@ -83,16 +83,16 @@ export interface paths {
         };
         /**
          * Get agent details
-         * @description Retrieve agent metadata and all registered tools.
+         * @description Retrieve agent metadata and all registered steps.
          *
-         *     Returns the latest version of each tool (tools are deduplicated by name).
+         *     Returns the latest version of each step (deduplicated by type+name).
          *
          *     Args:
          *         agent_id: UUID of the agent
          *         db: Database session (injected)
          *
          *     Returns:
-         *         GetAgentResponse with agent metadata and tool list
+         *         GetAgentResponse with agent metadata and step list
          *
          *     Raises:
          *         HTTPException 404: Agent not found
@@ -105,15 +105,15 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Modify agent (remove tools/evaluators)
-         * @description Remove tools and/or evaluators from an agent.
+         * Modify agent (remove steps/evaluators)
+         * @description Remove steps and/or evaluators from an agent.
          *
          *     This is the complement to initAgent which only adds items.
          *     Removals are idempotent - attempting to remove non-existent items is not an error.
          *
          *     Args:
          *         agent_id: UUID of the agent
-         *         request: Lists of tool/evaluator names to remove
+         *         request: Lists of step/evaluator identifiers to remove
          *         db: Database session (injected)
          *
          *     Returns:
@@ -443,7 +443,9 @@ export interface paths {
          *         limit: Maximum number of controls to return (default 20, max 100)
          *         name: Optional filter by name (partial, case-insensitive match)
          *         enabled: Optional filter by enabled status
-         *         applies_to: Optional filter by type ('llm_call' or 'tool_call')
+         *         step_type: Optional filter by step type (built-ins: 'tool', 'llm')
+         *         stage: Optional filter by stage ('pre' or 'post')
+         *         execution: Optional filter by execution ('server' or 'sdk')
          *         tag: Optional filter by tag
          *         db: Database session (injected)
          *
@@ -451,7 +453,7 @@ export interface paths {
          *         ListControlsResponse with control summaries and pagination info
          *
          *     Example:
-         *         GET /controls?limit=10&enabled=true&applies_to=llm_call
+         *         GET /controls?limit=10&enabled=true&step_type=tool
          */
         get: operations["list_controls_api_v1_controls_get"];
         /**
@@ -694,7 +696,7 @@ export interface components {
          * @description Agent metadata for registration and tracking.
          *
          *     An agent represents an AI system that can be protected and monitored.
-         *     Each agent has a unique ID and can have multiple tools registered with it.
+         *     Each agent has a unique ID and can have multiple steps registered with it.
          * @example {
          *       "agent_description": "Handles customer inquiries and support tickets",
          *       "agent_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -780,11 +782,11 @@ export interface components {
              */
             created_at?: string | null;
             /**
-             * Tool Count
-             * @description Number of tools registered with the agent
+             * Step Count
+             * @description Number of steps registered with the agent
              * @default 0
              */
-            tool_count: number;
+            step_count: number;
             /**
              * Evaluator Count
              * @description Number of evaluators registered with the agent
@@ -797,48 +799,6 @@ export interface components {
              * @default 0
              */
             active_controls_count: number;
-        };
-        /**
-         * AgentTool
-         * @description Tool schema for agent capabilities.
-         * @example {
-         *       "arguments": {
-         *         "query": {
-         *           "description": "Search query",
-         *           "type": "string"
-         *         }
-         *       },
-         *       "output_schema": {
-         *         "results": {
-         *           "items": {
-         *             "type": "object"
-         *           },
-         *           "type": "array"
-         *         }
-         *       },
-         *       "tool_name": "search_knowledge_base"
-         *     }
-         */
-        AgentTool: {
-            /**
-             * Tool Name
-             * @description Unique name for the tool
-             */
-            tool_name: string;
-            /**
-             * Arguments
-             * @description JSON schema describing tool input parameters
-             */
-            arguments: {
-                [key: string]: unknown;
-            };
-            /**
-             * Output Schema
-             * @description JSON schema describing tool output structure
-             */
-            output_schema: {
-                [key: string]: unknown;
-            };
         };
         /** AssocResponse */
         AssocResponse: {
@@ -884,8 +844,6 @@ export interface components {
          *       "action": {
          *         "decision": "deny"
          *       },
-         *       "applies_to": "llm_call",
-         *       "check_stage": "post",
          *       "description": "Block outputs containing US Social Security Numbers",
          *       "enabled": true,
          *       "evaluator": {
@@ -893,6 +851,15 @@ export interface components {
          *           "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b"
          *         },
          *         "plugin": "regex"
+         *       },
+         *       "execution": "server",
+         *       "scope": {
+         *         "stages": [
+         *           "post"
+         *         ],
+         *         "step_types": [
+         *           "llm"
+         *         ]
          *       },
          *       "selector": {
          *         "path": "output"
@@ -916,23 +883,13 @@ export interface components {
              */
             enabled: boolean;
             /**
-             * Local
-             * @description If True, this control runs locally in the SDK. If False (default), it runs on the server.
-             * @default false
-             */
-            local: boolean;
-            /**
-             * Applies To
-             * @description Which type of interaction this control applies to
+             * Execution
+             * @description Where this control executes
              * @enum {string}
              */
-            applies_to: "llm_call" | "tool_call";
-            /**
-             * Check Stage
-             * @description When to execute this control
-             * @enum {string}
-             */
-            check_stage: "pre" | "post";
+            execution: "server" | "sdk";
+            /** @description Which steps and stages this control applies to */
+            scope?: components["schemas"]["ControlScope"];
             /** @description What data to select from the payload */
             selector: components["schemas"]["ControlSelector"];
             /** @description How to evaluate the selected data */
@@ -970,17 +927,64 @@ export interface components {
             result: components["schemas"]["EvaluatorResult"];
         };
         /**
-         * ControlSelector
-         * @description Selects data from payload and optionally scopes applicability by tool.
-         *
-         *     - path: which slice of the payload to feed into the evaluator. Optional, defaults to "*"
-         *       meaning the entire payload object (ToolCall or LlmCall).
-         *     - tool_names/tool_name_regex: optional applicability filters for ToolCall payloads.
+         * ControlScope
+         * @description Defines when a control applies to a Step.
          * @example {
-         *       "path": "output"
+         *       "stages": [
+         *         "pre"
+         *       ],
+         *       "step_types": [
+         *         "tool"
+         *       ]
          *     }
          * @example {
-         *       "path": "arguments.query"
+         *       "step_names": [
+         *         "search_db",
+         *         "fetch_user"
+         *       ]
+         *     }
+         * @example {
+         *       "step_name_regex": "^db_.*"
+         *     }
+         * @example {
+         *       "stages": [
+         *         "post"
+         *       ],
+         *       "step_types": [
+         *         "llm"
+         *       ]
+         *     }
+         */
+        ControlScope: {
+            /**
+             * Step Types
+             * @description Step types this control applies to (omit to apply to all types). Built-in types are 'tool' and 'llm'.
+             */
+            step_types?: string[] | null;
+            /**
+             * Step Names
+             * @description Exact step names this control applies to
+             */
+            step_names?: string[] | null;
+            /**
+             * Step Name Regex
+             * @description RE2 pattern matched with search() against step name
+             */
+            step_name_regex?: string | null;
+            /**
+             * Stages
+             * @description Evaluation stages this control applies to
+             */
+            stages?: ("pre" | "post")[] | null;
+        };
+        /**
+         * ControlSelector
+         * @description Selects data from a Step payload.
+         *
+         *     - path: which slice of the Step to feed into the evaluator. Optional, defaults to "*"
+         *       meaning the entire Step object.
+         * @example {
+         *       "path": "output"
          *     }
          * @example {
          *       "path": "context.user_id"
@@ -992,34 +996,19 @@ export interface components {
          *       "path": "*"
          *     }
          * @example {
-         *       "path": "arguments.dest",
-         *       "tool_names": [
-         *         "copy_file",
-         *         "aws_cli"
-         *       ]
+         *       "path": "name"
          *     }
          * @example {
-         *       "path": "output",
-         *       "tool_name_regex": "^db_.*"
+         *       "path": "output"
          *     }
          */
         ControlSelector: {
             /**
              * Path
-             * @description Path to data using dot notation. Examples: 'input', 'output', 'arguments.query', 'context.user_id', 'tool_name', '*'
+             * @description Path to data using dot notation. Examples: 'input', 'output', 'context.user_id', 'name', 'type', '*'
              * @default *
              */
             path: string | null;
-            /**
-             * Tool Names
-             * @description Exact tool names this control applies to (ToolCall only)
-             */
-            tool_names?: string[] | null;
-            /**
-             * Tool Name Regex
-             * @description RE2 pattern matched with search() against tool_name (ToolCall only)
-             */
-            tool_name_regex?: string | null;
         };
         /**
          * ControlSummary
@@ -1048,15 +1037,20 @@ export interface components {
              */
             enabled: boolean;
             /**
-             * Applies To
-             * @description 'llm_call' or 'tool_call'
+             * Execution
+             * @description 'server' or 'sdk'
              */
-            applies_to?: string | null;
+            execution?: string | null;
             /**
-             * Check Stage
-             * @description 'pre' or 'post'
+             * Step Types
+             * @description Step types in scope
              */
-            check_stage?: string | null;
+            step_types?: string[] | null;
+            /**
+             * Stages
+             * @description Evaluation stages in scope
+             */
+            stages?: string[] | null;
             /**
              * Tags
              * @description Control tags
@@ -1128,58 +1122,64 @@ export interface components {
          *
          *     Attributes:
          *         agent_uuid: UUID of the agent making the request
-         *         payload: Either a ToolCall or LlmCall
-         *         check_stage: 'pre' (before execution) or 'post' (after execution)
+         *         step: Step payload for evaluation
+         *         stage: 'pre' (before execution) or 'post' (after execution)
          * @example {
          *       "agent_uuid": "550e8400-e29b-41d4-a716-446655440000",
-         *       "check_stage": "pre",
-         *       "payload": {
-         *         "context": {
-         *           "session_id": "abc123",
-         *           "user_id": "user123"
-         *         },
-         *         "input": "What is the customer's credit card number?"
-         *       }
-         *     }
-         * @example {
-         *       "agent_uuid": "550e8400-e29b-41d4-a716-446655440000",
-         *       "check_stage": "post",
-         *       "payload": {
+         *       "stage": "pre",
+         *       "step": {
          *         "context": {
          *           "session_id": "abc123",
          *           "user_id": "user123"
          *         },
          *         "input": "What is the customer's credit card number?",
-         *         "output": "I cannot share sensitive payment information."
+         *         "name": "support-answer",
+         *         "type": "llm"
          *       }
          *     }
          * @example {
          *       "agent_uuid": "550e8400-e29b-41d4-a716-446655440000",
-         *       "check_stage": "pre",
-         *       "payload": {
-         *         "arguments": {
-         *           "query": "SELECT * FROM users"
-         *         },
+         *       "stage": "post",
+         *       "step": {
          *         "context": {
+         *           "session_id": "abc123",
          *           "user_id": "user123"
          *         },
-         *         "tool_name": "search_database"
+         *         "input": "What is the customer's credit card number?",
+         *         "name": "support-answer",
+         *         "output": "I cannot share sensitive payment information.",
+         *         "type": "llm"
          *       }
          *     }
          * @example {
          *       "agent_uuid": "550e8400-e29b-41d4-a716-446655440000",
-         *       "check_stage": "post",
-         *       "payload": {
-         *         "arguments": {
-         *           "query": "SELECT * FROM users"
-         *         },
+         *       "stage": "pre",
+         *       "step": {
          *         "context": {
          *           "user_id": "user123"
          *         },
+         *         "input": {
+         *           "query": "SELECT * FROM users"
+         *         },
+         *         "name": "search_database",
+         *         "type": "tool"
+         *       }
+         *     }
+         * @example {
+         *       "agent_uuid": "550e8400-e29b-41d4-a716-446655440000",
+         *       "stage": "post",
+         *       "step": {
+         *         "context": {
+         *           "user_id": "user123"
+         *         },
+         *         "input": {
+         *           "query": "SELECT * FROM users"
+         *         },
+         *         "name": "search_database",
          *         "output": {
          *           "results": []
          *         },
-         *         "tool_name": "search_database"
+         *         "type": "tool"
          *       }
          *     }
          */
@@ -1190,17 +1190,14 @@ export interface components {
              * @description UUID of the agent making the evaluation request
              */
             agent_uuid: string;
+            /** @description Agent step payload to evaluate */
+            step: components["schemas"]["Step"];
             /**
-             * Payload
-             * @description Agent interaction payload - either a tool call or LLM call
-             */
-            payload: components["schemas"]["ToolCall"] | components["schemas"]["LlmCall"];
-            /**
-             * Check Stage
-             * @description Check stage: 'pre' or 'post'
+             * Stage
+             * @description Evaluation stage: 'pre' or 'post'
              * @enum {string}
              */
-            check_stage: "pre" | "post";
+            stage: "pre" | "post";
         };
         /**
          * EvaluationResponse
@@ -1363,16 +1360,16 @@ export interface components {
         };
         /**
          * GetAgentResponse
-         * @description Response containing agent details and registered tools.
+         * @description Response containing agent details and registered steps.
          */
         GetAgentResponse: {
             /** @description Agent metadata */
             agent: components["schemas"]["Agent"];
             /**
-             * Tools
-             * @description Tools registered with this agent
+             * Steps
+             * @description Steps registered with this agent
              */
-            tools: components["schemas"]["AgentTool"][];
+            steps: components["schemas"]["StepSchema"][];
             /**
              * Evaluators
              * @description Custom evaluators registered with this agent
@@ -1464,19 +1461,20 @@ export interface components {
          *           "name": "pii-detector"
          *         }
          *       ],
-         *       "tools": [
+         *       "steps": [
          *         {
-         *           "arguments": {
+         *           "input_schema": {
          *             "query": {
          *               "type": "string"
          *             }
          *           },
+         *           "name": "search_kb",
          *           "output_schema": {
          *             "results": {
          *               "type": "array"
          *             }
          *           },
-         *           "tool_name": "search_kb"
+         *           "type": "tool"
          *         }
          *       ]
          *     }
@@ -1485,10 +1483,10 @@ export interface components {
             /** @description Agent metadata including ID, name, and version */
             agent: components["schemas"]["Agent"];
             /**
-             * Tools
-             * @description List of tools available to the agent
+             * Steps
+             * @description List of steps available to the agent
              */
-            tools?: components["schemas"]["AgentTool"][];
+            steps?: components["schemas"]["StepSchema"][];
             /**
              * Evaluators
              * @description Custom evaluator schemas for config validation
@@ -1517,6 +1515,11 @@ export interface components {
              */
             controls?: components["schemas"]["Control"][];
         };
+        JSONObject: {
+            [key: string]: components["schemas"]["JSONValue"];
+        };
+        /** @description Any JSON value */
+        JSONValue: unknown;
         /**
          * ListAgentsResponse
          * @description Response for listing agents.
@@ -1553,33 +1556,6 @@ export interface components {
             pagination: components["schemas"]["PaginationInfo"];
         };
         /**
-         * LlmCall
-         * @description Represents an LLM interaction by the agent.
-         */
-        LlmCall: {
-            /**
-             * Context
-             * @description Optional context (conversation history, metadata, etc.)
-             */
-            context?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Input
-             * @description Input content to analyze for safety (text or structured data)
-             */
-            input: string | {
-                [key: string]: unknown;
-            };
-            /**
-             * Output
-             * @description Output content to analyze for safety (None for pre-checks)
-             */
-            output?: string | {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
          * PaginationInfo
          * @description Pagination metadata for cursor-based pagination.
          */
@@ -1607,14 +1583,14 @@ export interface components {
         };
         /**
          * PatchAgentRequest
-         * @description Request to modify an agent (remove tools/evaluators).
+         * @description Request to modify an agent (remove steps/evaluators).
          */
         PatchAgentRequest: {
             /**
-             * Remove Tools
-             * @description Tool names to remove from the agent
+             * Remove Steps
+             * @description Step identifiers to remove from the agent
              */
-            remove_tools?: string[];
+            remove_steps?: components["schemas"]["StepKey"][];
             /**
              * Remove Evaluators
              * @description Evaluator names to remove from the agent
@@ -1627,10 +1603,10 @@ export interface components {
          */
         PatchAgentResponse: {
             /**
-             * Tools Removed
-             * @description Tool names that were removed
+             * Steps Removed
+             * @description Step identifiers that were removed
              */
-            tools_removed?: string[];
+            steps_removed?: components["schemas"]["StepKey"][];
             /**
              * Evaluators Removed
              * @description Evaluator names that were removed
@@ -1742,34 +1718,119 @@ export interface components {
             old_policy_id?: number | null;
         };
         /**
-         * ToolCall
-         * @description Represents a tool invocation by the agent.
+         * Step
+         * @description Runtime payload for an agent step invocation.
          */
-        ToolCall: {
+        Step: {
             /**
-             * Context
-             * @description Optional context (conversation history, metadata, etc.)
+             * Type
+             * @description Step type (e.g., 'tool', 'llm')
              */
-            context?: {
+            type: string;
+            /**
+             * Name
+             * @description Step name (tool name or model/chain id)
+             */
+            name: string;
+            /** @description Input content for this step */
+            input: components["schemas"]["JSONValue"];
+            /** @description Output content for this step (None for pre-checks) */
+            output?: components["schemas"]["JSONValue"] | null;
+            /** @description Optional context (conversation history, metadata, etc.) */
+            context?: components["schemas"]["JSONObject"] | null;
+        };
+        /**
+         * StepKey
+         * @description Identifies a registered step schema by type and name.
+         */
+        StepKey: {
+            /**
+             * Type
+             * @description Step type
+             */
+            type: string;
+            /**
+             * Name
+             * @description Registered step name
+             */
+            name: string;
+        };
+        /**
+         * StepSchema
+         * @description Schema for a registered agent step.
+         * @example {
+         *       "description": "Search the internal knowledge base",
+         *       "input_schema": {
+         *         "query": {
+         *           "description": "Search query",
+         *           "type": "string"
+         *         }
+         *       },
+         *       "name": "search_knowledge_base",
+         *       "output_schema": {
+         *         "results": {
+         *           "items": {
+         *             "type": "object"
+         *           },
+         *           "type": "array"
+         *         }
+         *       },
+         *       "type": "tool"
+         *     }
+         * @example {
+         *       "description": "Customer support response generation",
+         *       "input_schema": {
+         *         "messages": {
+         *           "items": {
+         *             "type": "object"
+         *           },
+         *           "type": "array"
+         *         }
+         *       },
+         *       "name": "support-answer",
+         *       "output_schema": {
+         *         "text": {
+         *           "type": "string"
+         *         }
+         *       },
+         *       "type": "llm"
+         *     }
+         */
+        StepSchema: {
+            /**
+             * Type
+             * @description Step type for this schema (e.g., 'tool', 'llm')
+             */
+            type: string;
+            /**
+             * Name
+             * @description Unique name for the step
+             */
+            name: string;
+            /**
+             * Description
+             * @description Optional description of the step
+             */
+            description?: string | null;
+            /**
+             * Input Schema
+             * @description JSON schema describing step input
+             */
+            input_schema?: {
                 [key: string]: unknown;
             } | null;
             /**
-             * Tool Name
-             * @description Name of the tool called
+             * Output Schema
+             * @description JSON schema describing step output
              */
-            tool_name: string;
-            /**
-             * Arguments
-             * @description Arguments passed to the tool
-             */
-            arguments: {
+            output_schema?: {
                 [key: string]: unknown;
-            };
+            } | null;
             /**
-             * Output
-             * @description Output of the tool (None for pre-checks)
+             * Metadata
+             * @description Additional metadata for the step
              */
-            output?: string | {
+            metadata?: {
                 [key: string]: unknown;
             } | null;
         };
@@ -1867,7 +1928,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Agent metadata and registered tools */
+            /** @description Agent metadata and registered steps */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2251,8 +2312,12 @@ export interface operations {
                 name?: string | null;
                 /** @description Filter by enabled status */
                 enabled?: boolean | null;
-                /** @description Filter by 'llm_call' or 'tool_call' */
-                applies_to?: string | null;
+                /** @description Filter by step type (built-ins: 'tool', 'llm') */
+                step_type?: string | null;
+                /** @description Filter by stage ('pre' or 'post') */
+                stage?: string | null;
+                /** @description Filter by execution ('server' or 'sdk') */
+                execution?: string | null;
                 /** @description Filter by tag */
                 tag?: string | null;
             };

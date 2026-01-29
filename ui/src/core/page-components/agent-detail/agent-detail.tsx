@@ -37,6 +37,19 @@ interface AgentDetailPageProps {
   agentId: string;
 }
 
+const getStepTypeLabelAndColor = (
+  stepType: string
+): { label: string; color: string } => {
+  switch (stepType) {
+    case "llm":
+      return { label: "LLM", color: "blue" };
+    case "tool":
+      return { label: "Tool", color: "green" };
+    default:
+      return { label: stepType, color: "gray" };
+  }
+};
+
 const AgentDetailPage = ({ agentId }: AgentDetailPageProps) => {
   const [activeTab, setActiveTab] = useState<string | null>("controls");
   const [editModalOpened, setEditModalOpened] = useState(false);
@@ -122,40 +135,66 @@ const AgentDetailPage = ({ agentId }: AgentDetailPageProps) => {
       ),
     },
     {
-      id: "applies_to",
-      header: "Applies to",
-      accessorKey: "control.applies_to",
-      size: 120,
-      cell: ({ row }: { row: any }) => (
-        <Badge
-          variant='light'
-          color={
-            row.original.control?.applies_to === "llm_call" ? "blue" : "green"
-          }
-          size='sm'
-        >
-          {row.original.control?.applies_to === "llm_call"
-            ? "LLM Call"
-            : "Tool Call"}
-        </Badge>
-      ),
+      id: "step_types",
+      header: "Step types",
+      accessorKey: "control.scope.step_types",
+      size: 180,
+      cell: ({ row }: { row: any }) => {
+        const stepTypes = row.original.control?.scope?.step_types ?? [];
+        if (stepTypes.length === 0) {
+          return (
+            <Badge variant='light' color='gray' size='sm'>
+              All
+            </Badge>
+          );
+        }
+
+        return (
+          <Group gap={4} wrap='nowrap'>
+            {stepTypes.map((stepType: string) => {
+              const { label, color } = getStepTypeLabelAndColor(stepType);
+              return (
+                <Badge key={stepType} variant='light' color={color} size='sm'>
+                  {label}
+                </Badge>
+              );
+            })}
+          </Group>
+        );
+      },
     },
     {
-      id: "check_stage",
-      header: "Stage",
-      accessorKey: "control.check_stage",
-      size: 100,
-      cell: ({ row }: { row: any }) => (
-        <Badge
-          variant='light'
-          color={
-            row.original.control?.check_stage === "pre" ? "violet" : "orange"
-          }
-          size='sm'
-        >
-          {row.original.control?.check_stage === "pre" ? "Pre" : "Post"}
-        </Badge>
-      ),
+      id: "stages",
+      header: "Stages",
+      accessorKey: "control.scope.stages",
+      size: 120,
+      cell: ({ row }: { row: any }) => {
+        const stages = row.original.control?.scope?.stages ?? [];
+        if (stages.length === 0) {
+          return (
+            <Badge variant='light' color='gray' size='sm'>
+              All
+            </Badge>
+          );
+        }
+
+        if (stages.length > 1) {
+          return (
+            <Badge variant='light' color='gray' size='sm'>
+              Pre/Post
+            </Badge>
+          );
+        }
+
+        const stage = stages[0];
+        const label = stage === "pre" ? "Pre" : "Post";
+        const color = stage === "pre" ? "violet" : "orange";
+        return (
+          <Badge variant='light' color={color} size='sm'>
+            {label}
+          </Badge>
+        );
+      },
     },
     {
       id: "actions",
