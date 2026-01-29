@@ -55,9 +55,9 @@ export type StepSchema = components["schemas"]["StepSchema"];
 export type AgentSummary = components["schemas"]["AgentSummary"];
 export type ListAgentsResponse = components["schemas"]["ListAgentsResponse"];
 
-// Plugin types
-export type PluginInfo = components["schemas"]["PluginInfo"];
-export type PluginsResponse = Record<string, PluginInfo>;
+// Evaluator types
+export type EvaluatorInfo = components["schemas"]["EvaluatorInfo"];
+export type EvaluatorsResponse = Record<string, EvaluatorInfo>;
 
 // Request/Response types
 export type InitAgentRequest = components["schemas"]["InitAgentRequest"];

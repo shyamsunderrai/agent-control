@@ -76,8 +76,8 @@ export const api = {
         params: { path: { agent_id: agentId } },
       }),
   },
-  plugins: {
-    list: () => apiClient.GET("/api/v1/plugins"),
+  evaluators: {
+    list: () => apiClient.GET("/api/v1/evaluators"),
   },
   controls: {
     create: (data: CreateControlRequest) =>

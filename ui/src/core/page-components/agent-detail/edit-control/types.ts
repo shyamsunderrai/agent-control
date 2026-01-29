@@ -7,7 +7,7 @@ import type {
   ControlStage,
 } from "@/core/api/types";
 
-// Re-export evaluator form types from plugins for convenience
+// Re-export evaluator form types for convenience
 export type { JsonFormValues } from "./evaluators/json/types";
 export type { ListFormValues } from "./evaluators/list/types";
 export type {

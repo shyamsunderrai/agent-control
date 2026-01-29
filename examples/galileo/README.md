@@ -4,7 +4,7 @@ This directory contains examples demonstrating Agent Control integration with Ga
 
 ## Luna-2 Demo (`luna2_demo.py`)
 
-Demonstrates using the Luna-2 plugin with a **CENTRAL stage** for toxicity detection.
+Demonstrates using the Luna-2 evaluator with a **CENTRAL stage** for toxicity detection.
 
 ### Prerequisites
 
@@ -21,8 +21,13 @@ export GALILEO_API_KEY="your-api-key-here"
 # 2. (Optional) Set custom console URL
 export GALILEO_CONSOLE_URL="https://console.demo-v2.galileocloud.io"
 
-# 3. Run the demo
+# 3. (Optional) Override project/stage names
+export GALILEO_PROJECT_NAME="protect-demo"
+export GALILEO_STAGE_NAME="luna2-toxicity-stage"
+
+# 4. Install deps and run the demo
 cd examples/galileo
+uv sync
 uv run luna2_demo.py
 ```
 
@@ -37,7 +42,7 @@ The demo tests various inputs against a pre-configured toxicity detection stage:
 ### Central vs Local Stages
 
 - **Central Stage** (used in this demo): Rulesets and policies are pre-configured on the Galileo server. Simply reference the stage by name.
-- **Local Stage**: Define rulesets at runtime in your code (see plugin documentation).
+- **Local Stage**: Define rulesets at runtime in your code (see evaluator documentation).
 
 ### Expected Output
 
@@ -71,13 +76,13 @@ Testing toxicity detection with Central Stage...
 ### Troubleshooting
 
 - **"GALILEO_API_KEY environment variable is required"**: Export your API key
-- **"Project not found"**: Update `PROJECT_NAME` in the script to match your Galileo project
-- **"Stage not found"**: Update `STAGE_NAME` to match a stage in your project
-- **Import errors**: Ensure you installed with `[luna2]` extra: `pip install agent-control-plugins[luna2]`
+- **"Project not found"**: Set `GALILEO_PROJECT_NAME` to match your Galileo project
+- **"Stage not found"**: Set `GALILEO_STAGE_NAME` to match a stage in your project
+- **Import errors**: Ensure you installed with `[luna2]` extra: `pip install agent-control-evaluators[luna2]`
 
 ### Documentation
 
 - [Galileo Protect Overview](https://v2docs.galileo.ai/concepts/protect/overview)
 - [Luna-2 Python API Reference](https://v2docs.galileo.ai/sdk-api/python/reference/protect)
-- [Agent Control Luna-2 Plugin](../../plugins/src/agent_control_plugins/luna2/)
+- [Agent Control Luna-2 Evaluator](../../evaluators/src/agent_control_evaluators/luna2/)
 

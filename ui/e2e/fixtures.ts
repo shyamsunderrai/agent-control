@@ -4,9 +4,9 @@ import type {
   AgentControlsResponse,
   AgentSummary,
   Control,
+  EvaluatorsResponse,
   GetAgentResponse,
   ListAgentsResponse,
-  PluginsResponse,
 } from "@/core/api/types";
 
 /**
@@ -80,7 +80,7 @@ const controlsList: Control[] = [
       scope: { step_types: ["llm"], stages: ["post"] },
       selector: { path: "output" },
       evaluator: {
-        plugin: "regex",
+        name: "regex",
         config: { pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b" },
       },
       action: { decision: "deny" },
@@ -101,7 +101,7 @@ const controlsList: Control[] = [
       },
       selector: { path: "input.query" },
       evaluator: {
-        plugin: "sql",
+        name: "sql",
         config: { mode: "safe" },
       },
       action: { decision: "deny" },
@@ -118,7 +118,7 @@ const controlsList: Control[] = [
       scope: { step_types: ["llm"], stages: ["pre"] },
       selector: { path: "*" },
       evaluator: {
-        plugin: "list",
+        name: "list",
         config: { values: [], logic: "any", match_on: "match" },
       },
       action: { decision: "allow" },
@@ -131,7 +131,7 @@ const controlsResponse: AgentControlsResponse = {
   controls: controlsList,
 };
 
-const pluginsResponse: PluginsResponse = {
+const evaluatorsResponse: EvaluatorsResponse = {
   regex: {
     name: "Regex",
     version: "1.0.0",
@@ -211,7 +211,7 @@ export const mockData = {
   agents: agentsResponse,
   agent: agentResponse,
   controls: controlsResponse,
-  plugins: pluginsResponse,
+  evaluators: evaluatorsResponse,
 } as const;
 
 /**
@@ -248,12 +248,12 @@ export async function mockApiRoutes(page: Page) {
     });
   });
 
-  // Mock plugins list
-  await page.route("**/api/v1/plugins", async (route) => {
+  // Mock evaluators list
+  await page.route("**/api/v1/evaluators", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(mockData.plugins),
+      body: JSON.stringify(mockData.evaluators),
     });
   });
 

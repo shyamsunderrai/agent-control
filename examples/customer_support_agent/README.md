@@ -12,8 +12,8 @@ This example demonstrates how to integrate the `agent-control` SDK into an exist
 ## Quick Start
 
 ```bash
-# 1. Install SDK and plugins (first time only)
-pip install -e sdks/python -e plugins
+# 1. Install SDK and evaluators (first time only)
+pip install -e sdks/python -e evaluators
 
 # 2. Start all services (database, server, UI, demo controls)
 ./examples/customer_support_agent/demo.sh start
@@ -48,10 +48,10 @@ When you open the UI, you'll see the agent with controls already configured.
 
 ### First-Time Setup
 
-1. **Install the SDK and plugins**:
+1. **Install the SDK and evaluators**:
    ```bash
    pip install -e sdks/python
-   pip install -e plugins
+   pip install -e evaluators
    ```
 
 2. **Install UI dependencies**:
@@ -262,12 +262,13 @@ The demo setup creates three controls automatically. Here are examples of additi
 ### PII Detection (Post-check on output)
 ```yaml
 name: block-pii-in-output
-applies_to: llm_call
-check_stage: post
+scope:
+  step_types: ["llm_inference"]
+  stages: ["post"]
 selector:
   path: output
 evaluator:
-  plugin: regex
+  name: regex
   config:
     pattern: '\d{3}-\d{2}-\d{4}'  # SSN pattern
 action:
@@ -278,12 +279,13 @@ action:
 ### Prompt Injection (Pre-check on input)
 ```yaml
 name: block-prompt-injection
-applies_to: llm_call
-check_stage: pre
+scope:
+  step_types: ["llm_inference"]
+  stages: ["pre"]
 selector:
   path: input
 evaluator:
-  plugin: regex
+  name: regex
   config:
     pattern: '(?i)(ignore.*instructions|system:|you are now)'
 action:
@@ -294,12 +296,13 @@ action:
 ### Toxic Content (Pre-check on input)
 ```yaml
 name: block-toxic-input
-applies_to: llm_call
-check_stage: pre
+scope:
+  step_types: ["llm_inference"]
+  stages: ["pre"]
 selector:
   path: input
 evaluator:
-  plugin: luna2
+  name: luna2
   config:
     threshold: 0.8
 action:

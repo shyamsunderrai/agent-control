@@ -3,7 +3,7 @@
 from typing import Any, cast
 from uuid import UUID
 
-from agent_control_engine import ensure_plugins_discovered
+from agent_control_engine import ensure_evaluators_discovered
 
 from .client import AgentControlClient
 
@@ -40,8 +40,8 @@ async def register_agent(
             response = await register_agent(client, agent, steps=[...])
             print(f"Created: {response['created']}")
     """
-    # Ensure plugins are discovered for local evaluation support
-    ensure_plugins_discovered()
+    # Ensure evaluators are discovered for local evaluation support
+    ensure_evaluators_discovered()
 
     if steps is None:
         steps = []
@@ -140,5 +140,55 @@ async def list_agents(
     if cursor:
         params["cursor"] = cursor
     response = await client.http_client.get("/api/v1/agents", params=params)
+    response.raise_for_status()
+    return cast(dict[str, Any], response.json())
+
+
+async def get_agent_policy(
+    client: AgentControlClient,
+    agent_id: str,
+) -> dict[str, Any]:
+    """
+    Get the policy assigned to an agent.
+
+    Args:
+        client: AgentControlClient instance
+        agent_id: UUID or string identifier of the agent
+
+    Returns:
+        Dictionary containing:
+            - policy_id: ID of the policy assigned to the agent
+
+    Raises:
+        httpx.HTTPError: If request fails or agent has no policy
+
+    Example:
+        async with AgentControlClient() as client:
+            policy = await get_agent_policy(client, agent_id)
+            print(f"Policy ID: {policy['policy_id']}")
+    """
+    response = await client.http_client.get(f"/api/v1/agents/{agent_id}/policy")
+    response.raise_for_status()
+    return cast(dict[str, Any], response.json())
+
+
+async def remove_agent_policy(
+    client: AgentControlClient,
+    agent_id: str,
+) -> dict[str, Any]:
+    """
+    Remove the policy assignment from an agent.
+
+    Args:
+        client: AgentControlClient instance
+        agent_id: UUID or string identifier of the agent
+
+    Returns:
+        Dictionary containing success flag/details
+
+    Raises:
+        httpx.HTTPError: If request fails or agent has no policy
+    """
+    response = await client.http_client.delete(f"/api/v1/agents/{agent_id}/policy")
     response.raise_for_status()
     return cast(dict[str, Any], response.json())

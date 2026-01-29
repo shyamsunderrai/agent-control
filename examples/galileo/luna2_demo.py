@@ -1,4 +1,4 @@
-"""Demo: Luna-2 Plugin for Toxicity Detection.
+"""Demo: Luna-2 Evaluator for Toxicity Detection.
 
 This example demonstrates using Galileo Protect with a CENTRAL stage
 to detect toxic content in user inputs.
@@ -14,7 +14,7 @@ Setup:
        python luna2_demo.py
 
 Requirements:
-    pip install httpx>=0.24.0
+    pip install agent-control-evaluators[luna2]
 """
 
 import asyncio
@@ -37,21 +37,21 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # Import our direct API client (no SDK required)
 try:
-    from agent_control_plugins.luna2.client import (
+    from agent_control_evaluators.luna2.client import (
         GalileoProtectClient,
         Payload,
     )
 
     GALILEO_AVAILABLE = True
 except ImportError as e:
-    print(f"❌ agent-control-plugins not available: {e}")
-    print("   Install with: pip install agent-control-plugins[luna2]")
+    print(f"❌ agent-control-evaluators not available: {e}")
+    print("   Install with: pip install agent-control-evaluators[luna2]")
     sys.exit(1)
 
 
 # Configuration - using the CENTRAL stage we created
-PROJECT_NAME = "protect-demo"
-STAGE_NAME = "luna2-toxicity-stage"
+PROJECT_NAME = os.getenv("GALILEO_PROJECT_NAME", "protect-demo")
+STAGE_NAME = os.getenv("GALILEO_STAGE_NAME", "luna2-toxicity-stage")
 
 
 async def test_luna2_central_stage() -> None:
