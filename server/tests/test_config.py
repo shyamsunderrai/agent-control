@@ -24,3 +24,14 @@ def test_settings_parses_cors_origins_string() -> None:
 
     # Then: the origins are split and trimmed
     assert origins == ["https://a.example", "https://b.example"]
+
+
+def test_settings_returns_cors_origins_list_unchanged() -> None:
+    # Given: a CORS origins list
+    settings = Settings(cors_origins=["https://a.example", "https://b.example"])
+
+    # When: parsing CORS origins
+    origins = settings.get_cors_origins()
+
+    # Then: the list is returned as-is
+    assert origins == ["https://a.example", "https://b.example"]

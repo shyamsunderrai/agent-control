@@ -115,6 +115,37 @@ def test_list_agent_evaluators_invalid_cursor_returns_first_page(client: TestCli
     assert with_cursor["pagination"]["total"] == base["pagination"]["total"]
 
 
+def test_init_agent_preserves_existing_steps_when_missing_from_payload(
+    client: TestClient,
+) -> None:
+    # Given: an agent registered with two steps
+    steps = [
+        {"type": "tool", "name": "tool-a", "input_schema": {}, "output_schema": {}},
+        {"type": "tool", "name": "tool-b", "input_schema": {}, "output_schema": {}},
+    ]
+    agent_id, agent_name = _init_agent(client, steps=steps)
+
+    # When: re-initializing with only one of the steps
+    payload = {
+        "agent": {
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "agent_description": "desc",
+            "agent_version": "1.0",
+        },
+        "steps": [steps[0]],
+        "evaluators": [],
+    }
+    resp = client.post("/api/v1/agents/initAgent", json=payload)
+    assert resp.status_code == 200
+
+    # Then: the missing step is preserved (initAgent only adds)
+    get_resp = client.get(f"/api/v1/agents/{agent_id}")
+    assert get_resp.status_code == 200
+    step_names = {step["name"] for step in get_resp.json()["steps"]}
+    assert step_names == {"tool-a", "tool-b"}
+
+
 def test_get_agent_evaluator_not_found(client: TestClient) -> None:
     # Given: an existing agent with no matching evaluator
     agent_id, _ = _init_agent(client)

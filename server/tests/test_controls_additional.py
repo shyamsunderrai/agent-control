@@ -3,11 +3,17 @@ from __future__ import annotations
 import json
 import uuid
 from copy import deepcopy
+from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from agent_control_server.models import Control
+
+from agent_control_models.controls import RegexEvaluatorConfig
+from agent_control_server.endpoints import controls as controls_module
 from agent_control_server.models import Control
 
 from .conftest import engine
@@ -615,6 +621,98 @@ def test_set_control_data_unknown_evaluator_allowed(client: TestClient) -> None:
     # Then: update succeeds (unknown evaluators are allowed)
     assert resp.status_code == 200
     assert resp.json()["success"] is True
+
+
+def test_set_control_data_builtin_evaluator_validation_error(
+    client: TestClient, monkeypatch
+) -> None:
+    # Given: a control and a server-side evaluator that enforces a schema
+    control_id, _ = _create_control(client)
+
+    class DummyEvaluator:
+        config_model = RegexEvaluatorConfig
+
+    monkeypatch.setattr(
+        controls_module,
+        "list_evaluators",
+        lambda: {"dummy": DummyEvaluator},
+    )
+
+    payload = deepcopy(VALID_CONTROL_PAYLOAD)
+    payload["evaluator"] = {"name": "dummy", "config": {}}
+
+    # When: setting control data with invalid config
+    resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
+
+    # Then: invalid config error is returned
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["error_code"] == "INVALID_CONFIG"
+    assert any("data.evaluator.config" in err.get("field", "") for err in body.get("errors", []))
+
+
+def test_set_control_data_builtin_evaluator_invalid_parameters(
+    client: TestClient, monkeypatch
+) -> None:
+    # Given: a control and a server-side evaluator that raises TypeError
+    control_id, _ = _create_control(client)
+
+    class DummyEvaluator:
+        @staticmethod
+        def config_model(**_kwargs):  # type: ignore[no-untyped-def]
+            raise TypeError("unexpected parameter")
+
+    monkeypatch.setattr(
+        controls_module,
+        "list_evaluators",
+        lambda: {"dummy": DummyEvaluator},
+    )
+
+    payload = deepcopy(VALID_CONTROL_PAYLOAD)
+    payload["evaluator"] = {"name": "dummy", "config": {"unexpected": "value"}}
+
+    # When: setting control data with invalid parameters
+    resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
+
+    # Then: invalid parameters error is returned
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["error_code"] == "INVALID_CONFIG"
+    assert any(err.get("code") == "invalid_parameters" for err in body.get("errors", []))
+
+
+@pytest.mark.asyncio
+async def test_set_control_data_selector_without_model_dump_uses_original_serialization(
+    async_db,
+) -> None:
+    # Given: a control and a request whose selector cannot be re-dumped
+    control = Control(name=f"control-{uuid.uuid4()}", data=None)
+    async_db.add(control)
+    await async_db.flush()
+
+    payload = deepcopy(VALID_CONTROL_PAYLOAD)
+
+    class DummyData:
+        def __init__(self, data: dict[str, object]) -> None:
+            self._data = data
+            self.selector = data["selector"]
+            self.evaluator = SimpleNamespace(
+                name=data["evaluator"]["name"],
+                config=data["evaluator"]["config"],
+            )
+
+        def model_dump(self, *args: object, **kwargs: object) -> dict[str, object]:
+            return self._data
+
+    request = SimpleNamespace(data=DummyData(payload))
+
+    # When: updating the control data with a non-Pydantic selector
+    response = await controls_module.set_control_data(control.id, request, async_db)
+
+    # Then: the update succeeds and uses the original selector serialization
+    assert response.success is True
+    await async_db.refresh(control)
+    assert control.data["selector"] == payload["selector"]
 
 
 def test_patch_control_rename_preserves_enabled(client: TestClient) -> None:

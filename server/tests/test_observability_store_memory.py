@@ -12,6 +12,7 @@ from agent_control_server.observability.store.memory import MemoryEventStore
 def _event(
     *,
     agent_uuid=None,
+    control_execution_id: str | None = None,
     control_id: int = 1,
     action: str = "allow",
     matched: bool = True,
@@ -39,6 +40,7 @@ def _event(
         timestamp=timestamp or datetime.now(UTC),
         execution_duration_ms=execution_duration_ms,
         error_message=error_message,
+        control_execution_id=control_execution_id or str(uuid4()),
     )
 
 
@@ -171,3 +173,47 @@ async def test_memory_event_store_query_events_filters_and_pagination() -> None:
     # Then: pagination returns one event and total remains accurate
     assert resp.total == 3
     assert len(resp.events) == 1
+
+
+@pytest.mark.asyncio
+async def test_memory_event_store_query_events_additional_filters() -> None:
+    # Given: a store with events differing by id, agent, stage, and scope
+    store = MemoryEventStore()
+    agent_uuid = uuid4()
+    other_agent = uuid4()
+
+    e1 = _event(
+        agent_uuid=agent_uuid,
+        control_execution_id="exec-1",
+        control_id=10,
+        span_id="span-1",
+        check_stage="pre",
+        applies_to="llm_call",
+    )
+    e2 = _event(
+        agent_uuid=other_agent,
+        control_execution_id="exec-2",
+        control_id=20,
+        span_id="span-2",
+        check_stage="post",
+        applies_to="tool_call",
+    )
+
+    await store.store([e1, e2])
+
+    # When: filtering on span_id, control_execution_id, agent, control_ids, and stage/scope
+    query = EventQueryRequest(
+        span_id="span-1",
+        control_execution_id="exec-1",
+        agent_uuid=agent_uuid,
+        control_ids=[10],
+        check_stages=["pre"],
+        applies_to=["llm_call"],
+        limit=10,
+        offset=0,
+    )
+    resp = await store.query_events(query)
+
+    # Then: only the matching event is returned
+    assert resp.total == 1
+    assert resp.events[0].control_execution_id == "exec-1"

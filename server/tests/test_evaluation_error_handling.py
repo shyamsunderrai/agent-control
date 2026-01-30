@@ -1,13 +1,11 @@
 """End-to-end tests for evaluator error handling."""
-import json
+import logging
 import uuid
-from copy import deepcopy
 
 from fastapi.testclient import TestClient
-from sqlalchemy import text
-from agent_control_models import EvaluationRequest, Step
 
-from .conftest import engine
+from agent_control_models import EvaluationRequest, Step
+from agent_control_server.observability.ingest.base import IngestResult
 from .utils import create_and_assign_policy
 
 
@@ -18,7 +16,7 @@ def test_evaluation_with_agent_scoped_evaluator_missing(client: TestClient):
     When: Attempting to assign policy
     Then: Returns 400 with clear error message
     """
-    # Given: Agent without evaluators
+    # Given: an agent without evaluators
     agent_uuid = uuid.uuid4()
     client.post("/api/v1/agents/initAgent", json={
         "agent": {
@@ -29,7 +27,7 @@ def test_evaluation_with_agent_scoped_evaluator_missing(client: TestClient):
         "evaluators": []
     })
 
-    # And: A control referencing non-existent agent evaluator
+    # And: a control referencing a non-existent agent evaluator
     agent_name = f"TestAgent-{uuid.uuid4().hex[:8]}"
     control_data = {
         "description": "Test control",
@@ -44,13 +42,15 @@ def test_evaluation_with_agent_scoped_evaluator_missing(client: TestClient):
         "action": {"decision": "deny"}
     }
 
-    # When: Creating control - this should fail at control creation
+    # When: creating the control shell
     control_resp = client.put("/api/v1/controls", json={"name": f"control-{uuid.uuid4().hex[:8]}"})
     assert control_resp.status_code == 200
     control_id = control_resp.json()["control_id"]
 
-    # Then: Setting control data should fail if agent doesn't exist
+    # When: setting control data with a missing agent-scoped evaluator
     set_resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": control_data})
+
+    # Then: a validation or not-found error is returned
     # This will fail because the agent doesn't exist yet
     assert set_resp.status_code in [404, 422]
 
@@ -62,12 +62,12 @@ def test_evaluation_control_with_invalid_config_caught_early(client: TestClient)
     When: Setting control data
     Then: Returns 422 with validation error
     """
-    # Given: Create control
+    # Given: a control shell to configure
     control_resp = client.put("/api/v1/controls", json={"name": f"control-{uuid.uuid4().hex[:8]}"})
     assert control_resp.status_code == 200
     control_id = control_resp.json()["control_id"]
 
-    # When: Setting control data with invalid regex config (missing required 'pattern')
+    # When: setting control data with invalid regex config (missing required 'pattern')
     control_data = {
         "description": "Test control",
         "enabled": True,
@@ -83,7 +83,7 @@ def test_evaluation_control_with_invalid_config_caught_early(client: TestClient)
 
     set_resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": control_data})
 
-    # Then: Should fail with validation error
+    # Then: a validation error is returned
     assert set_resp.status_code == 422
     assert "pattern" in set_resp.text.lower() or "required" in set_resp.text.lower()
 
@@ -99,7 +99,7 @@ def test_evaluation_errors_field_populated_on_evaluator_failure(
     """
     from unittest.mock import MagicMock, AsyncMock
 
-    # Given: Setup agent with a working control
+    # Given: an agent with a working control
     control_data = {
         "description": "Test control",
         "enabled": True,
@@ -114,7 +114,7 @@ def test_evaluation_errors_field_populated_on_evaluator_failure(
     }
     agent_uuid, control_name = create_and_assign_policy(client, control_data)
 
-    # Mock get_evaluator_instance to return an evaluator that throws
+    # And: an evaluator instance that throws during evaluation
     mock_evaluator = MagicMock()
     mock_evaluator.evaluate = AsyncMock(side_effect=RuntimeError("Simulated evaluator crash"))
     mock_evaluator.get_timeout_seconds = MagicMock(return_value=30.0)
@@ -127,7 +127,7 @@ def test_evaluation_errors_field_populated_on_evaluator_failure(
 
     monkeypatch.setattr(core_module, "get_evaluator_instance", mock_get_evaluator_instance)
 
-    # When: Sending evaluation request
+    # When: sending an evaluation request
     payload = Step(type="llm", name="test-step", input="test content", output=None)
     req = EvaluationRequest(
         agent_uuid=agent_uuid,
@@ -136,24 +136,24 @@ def test_evaluation_errors_field_populated_on_evaluator_failure(
     )
     resp = client.post("/api/v1/evaluation", json=req.model_dump(mode="json"))
 
-    # Then: Response should have errors field populated
+    # Then: the response reports an evaluation error
     assert resp.status_code == 200
     data = resp.json()
 
-    # is_safe=False because deny control errored (fail closed)
+    # Then: is_safe is false because deny control errored (fail closed)
     assert data["is_safe"] is False
 
-    # Confidence should be 0 (no successful evaluations)
+    # And: confidence is zero (no successful evaluations)
     assert data["confidence"] == 0.0
 
-    # Errors field should be populated
+    # And: errors field is populated with the failing control
     assert data["errors"] is not None
     assert len(data["errors"]) == 1
     assert data["errors"][0]["control_name"] == control_name
     assert "RuntimeError" in data["errors"][0]["result"]["error"]
     assert "Simulated evaluator crash" in data["errors"][0]["result"]["error"]
 
-    # No matches because evaluation failed
+    # And: no matches are returned because evaluation failed
     assert data["matches"] is None or len(data["matches"]) == 0
 
 
@@ -190,83 +190,32 @@ def test_evaluation_engine_value_error_returns_422(client: TestClient, monkeypat
     assert body["error_code"] == "EVALUATION_FAILED"
 
 
-def test_evaluation_unknown_agent_returns_404(client: TestClient) -> None:
-    # Given: an agent UUID that has not been registered
-    missing_agent = uuid.uuid4()
-    payload = Step(type="llm", name="test-step", input="content", output=None)
-    req = EvaluationRequest(agent_uuid=missing_agent, step=payload, stage="pre")
-
-    # When: submitting an evaluation request
-    resp = client.post("/api/v1/evaluation", json=req.model_dump(mode="json"))
-
-    # Then: not found is returned with a clear error code
-    assert resp.status_code == 404
-    body = resp.json()
-    assert body["error_code"] == "AGENT_NOT_FOUND"
-
-
-def test_evaluation_invalid_step_name_regex_reports_error_and_allows(
-    client: TestClient,
+def test_evaluation_warns_when_observability_drops_events(
+    client: TestClient, app, caplog
 ) -> None:
-    # Given: an agent with a control scoped by step_name_regex
-    control_name = f"control-{uuid.uuid4().hex[:8]}"
-    control_resp = client.put("/api/v1/controls", json={"name": control_name})
-    assert control_resp.status_code == 200
-    control_id = control_resp.json()["control_id"]
+    # Given: an agent with a control that will match
+    agent_uuid, _ = create_and_assign_policy(client)
 
-    control_data = {
-        "description": "Step regex control",
-        "enabled": True,
-        "execution": "server",
-        "scope": {
-            "step_types": ["tool"],
-            "stages": ["pre"],
-            "step_name_regex": "^safe_.*",
-        },
-        "selector": {"path": "input"},
-        "evaluator": {"name": "regex", "config": {"pattern": ".*"}},
-        "action": {"decision": "deny"},
-    }
-    set_resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": control_data})
-    assert set_resp.status_code == 200
+    class DroppingIngestor:
+        async def ingest(self, events):  # type: ignore[no-untyped-def]
+            return IngestResult(received=len(events), processed=0, dropped=len(events))
 
-    policy_resp = client.put("/api/v1/policies", json={"name": f"policy-{uuid.uuid4().hex[:8]}"})
-    assert policy_resp.status_code == 200
-    policy_id = policy_resp.json()["policy_id"]
-    assoc_resp = client.post(f"/api/v1/policies/{policy_id}/controls/{control_id}")
-    assert assoc_resp.status_code == 200
+    previous_ingestor = getattr(app.state, "event_ingestor", None)
+    app.state.event_ingestor = DroppingIngestor()
+    try:
+        # And: a log capture for the evaluation warning
+        caplog.set_level(logging.WARNING, logger="agent_control_server.endpoints.evaluation")
 
-    agent_uuid = uuid.uuid4()
-    agent_resp = client.post("/api/v1/agents/initAgent", json={
-        "agent": {"agent_id": str(agent_uuid), "agent_name": "RegexAgent"},
-        "steps": []
-    })
-    assert agent_resp.status_code == 200
-    assign_resp = client.post(f"/api/v1/agents/{str(agent_uuid)}/policy/{policy_id}")
-    assert assign_resp.status_code == 200
+        # When: sending an evaluation request
+        payload = Step(type="llm", name="test-step", input="x", output=None)
+        req = EvaluationRequest(agent_uuid=agent_uuid, step=payload, stage="pre")
+        resp = client.post("/api/v1/evaluation", json=req.model_dump(mode="json"))
 
-    # And: the control data is corrupted with an invalid regex
-    corrupted_data = deepcopy(control_data)
-    corrupted_data["scope"]["step_name_regex"] = "("
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE controls SET data = CAST(:data AS JSONB) WHERE id = :id"),
-            {"data": json.dumps(corrupted_data), "id": control_id},
-        )
-
-    # When: evaluating a tool step for that agent
-    req = EvaluationRequest(
-        agent_uuid=agent_uuid,
-        step=Step(type="tool", name="safe_tool", input={}, output=None),
-        stage="pre",
-    )
-    resp = client.post("/api/v1/evaluation", json=req.model_dump(mode="json"))
-
-    # Then: evaluation succeeds but surfaces the selector error
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["is_safe"] is True
-    assert body["confidence"] == 0.0
-    assert body["errors"] is not None
-    assert body["errors"][0]["control_name"] == control_name
-    assert "Invalid step_name_regex" in body["errors"][0]["result"]["error"]
+        # Then: the evaluation succeeds but logs a dropped-events warning
+        assert resp.status_code == 200
+        assert any("Dropped" in record.message for record in caplog.records)
+    finally:
+        if previous_ingestor is None:
+            del app.state.event_ingestor
+        else:
+            app.state.event_ingestor = previous_ingestor

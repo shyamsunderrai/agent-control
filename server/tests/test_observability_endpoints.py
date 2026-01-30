@@ -314,6 +314,25 @@ class TestObservabilityQueries:
         assert body["total_matches"] == 2
         assert body["total_non_matches"] == 1
 
+    def test_query_events_returns_500_when_store_missing(self, client: TestClient):
+        """Test that query endpoint fails when the event store is not initialized."""
+        # Given: the event store is unset
+        original_store = app.state.event_store
+        app.state.event_store = None
+        try:
+            # When: posting a query
+            query = EventQueryRequest(limit=10, offset=0)
+            with pytest.raises(RuntimeError):
+                client.post(
+                    "/api/v1/observability/events/query",
+                    json=query.model_dump(mode="json"),
+                )
+        finally:
+            app.state.event_store = original_store
+
+        # Then: an internal error is returned
+        # (exception raised due to TestClient raise_server_exceptions=True)
+
 
 class TestObservabilityIngestStatus:
     """Tests for ingestion status mapping."""
@@ -343,5 +362,33 @@ class TestObservabilityIngestStatus:
             assert data["enqueued"] == 1
             assert data["dropped"] == 2
             assert data["status"] == "partial"
+        finally:
+            app.state.event_ingestor = original
+
+    def test_ingest_events_failed_status(self, client: TestClient):
+        # Given: a stub ingestor that drops all events
+        class StubIngestor:
+            async def ingest(self, events):
+                return IngestResult(received=len(events), processed=0, dropped=len(events))
+
+        original = app.state.event_ingestor
+        app.state.event_ingestor = StubIngestor()
+        try:
+            events = [create_test_event(i) for i in range(2)]
+            request = BatchEventsRequest(events=events)
+
+            # When: ingesting events
+            response = client.post(
+                "/api/v1/observability/events",
+                json=request.model_dump(mode="json"),
+            )
+
+            # Then: status is failed with expected counts
+            assert response.status_code == 202
+            data = response.json()
+            assert data["received"] == 2
+            assert data["enqueued"] == 0
+            assert data["dropped"] == 2
+            assert data["status"] == "failed"
         finally:
             app.state.event_ingestor = original

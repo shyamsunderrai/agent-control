@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from agent_control_server.config import settings
-from agent_control_server.errors import generic_exception_handler, http_exception_handler
+from agent_control_server.errors import InternalError, generic_exception_handler, http_exception_handler
 
 
 @pytest.mark.asyncio
@@ -40,3 +40,29 @@ async def test_generic_exception_handler_exposes_details_in_local_dev(monkeypatc
     assert response.status_code == 500
     body = json.loads(response.body.decode("utf-8"))
     assert "ValueError: boom" in body["detail"]
+
+
+@pytest.mark.asyncio
+async def test_http_exception_handler_uses_dict_detail_message() -> None:
+    # Given: an HTTPException with a dict detail payload
+    request = Request({"type": "http", "method": "GET", "path": "/bad", "headers": []})
+    exc = HTTPException(status_code=400, detail={"message": "bad input"})
+
+    # When: handling the HTTPException
+    response = await http_exception_handler(request, exc)
+
+    # Then: the response uses the dict message as detail
+    assert response.status_code == 400
+    body = json.loads(response.body.decode("utf-8"))
+    assert body["detail"] == "bad input"
+
+
+def test_internal_error_sets_default_hint() -> None:
+    # Given: an InternalError without an explicit hint
+    err = InternalError(detail="boom")
+
+    # When: converting to a problem detail response
+    problem = err.to_problem_detail(instance="/boom")
+
+    # Then: the default hint is included
+    assert "unexpected error" in (problem.hint or "")
