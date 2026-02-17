@@ -461,3 +461,129 @@ class TestControlViolationError:
 
         with pytest.raises(ControlViolationError):
             raise violation
+
+
+# =============================================================================
+# STEP NAME TESTS
+# =============================================================================
+
+class TestStepName:
+    """Tests for custom step_name parameter."""
+
+    @pytest.mark.asyncio
+    async def test_custom_step_name_used_in_payload(self, mock_agent, mock_safe_response):
+        """Test that custom step_name is passed to evaluation payload."""
+        # GIVEN: A mock evaluation function that captures step payloads
+        captured_steps = []
+
+        async def mock_evaluate(
+            agent_uuid,
+            step,
+            stage,
+            server_url,
+            trace_id=None,
+            span_id=None,
+            controls=None,
+        ):
+            captured_steps.append(step)
+            return mock_safe_response
+
+        # GIVEN: Agent control is initialized and evaluation is mocked
+        with patch("agent_control.control_decorators._get_current_agent", return_value=mock_agent), \
+             patch("agent_control.control_decorators._evaluate", side_effect=mock_evaluate):
+
+            # GIVEN: A function decorated with custom step_name
+            @control(step_name="custom_handler")
+            async def my_function(message: str) -> str:
+                return f"Response: {message}"
+
+            # WHEN: The decorated function is called
+            await my_function("test")
+
+            # THEN: Both pre and post evaluation payloads should be captured
+            assert len(captured_steps) == 2
+
+            # THEN: Both payloads should use the custom step name
+            assert captured_steps[0]["name"] == "custom_handler"
+            assert captured_steps[1]["name"] == "custom_handler"
+
+    @pytest.mark.asyncio
+    async def test_default_step_name_uses_function_name(self, mock_agent, mock_safe_response):
+        """Test that without step_name, function name is used."""
+        # GIVEN: A mock evaluation function that captures step payloads
+        captured_steps = []
+
+        async def mock_evaluate(
+            agent_uuid,
+            step,
+            stage,
+            server_url,
+            trace_id=None,
+            span_id=None,
+            controls=None,
+        ):
+            captured_steps.append(step)
+            return mock_safe_response
+
+        # GIVEN: Agent control is initialized and evaluation is mocked
+        with patch("agent_control.control_decorators._get_current_agent", return_value=mock_agent), \
+             patch("agent_control.control_decorators._evaluate", side_effect=mock_evaluate):
+
+            # GIVEN: A function decorated without custom step_name
+            @control()
+            async def my_special_function(message: str) -> str:
+                return f"Response: {message}"
+
+            # WHEN: The decorated function is called
+            await my_special_function("test")
+
+            # THEN: Both pre and post evaluation payloads should be captured
+            assert len(captured_steps) == 2
+
+            # THEN: Both payloads should use the function name as default step name
+            assert captured_steps[0]["name"] == "my_special_function"
+            assert captured_steps[1]["name"] == "my_special_function"
+
+    @pytest.mark.asyncio
+    async def test_step_name_with_tool_decorator(self, mock_agent, mock_safe_response):
+        """Test step_name overrides tool name from @tool decorator."""
+        # GIVEN: A mock evaluation function that captures step payloads
+        captured_steps = []
+
+        async def mock_evaluate(
+            agent_uuid,
+            step,
+            stage,
+            server_url,
+            trace_id=None,
+            span_id=None,
+            controls=None,
+        ):
+            captured_steps.append(step)
+            return mock_safe_response
+
+        # GIVEN: Agent control is initialized and evaluation is mocked
+        with patch("agent_control.control_decorators._get_current_agent", return_value=mock_agent), \
+             patch("agent_control.control_decorators._evaluate", side_effect=mock_evaluate):
+
+            # GIVEN: A function with tool_name attribute (simulating @tool decorator)
+            async def search_tool(query: str) -> str:
+                return f"Results for: {query}"
+
+            # GIVEN: tool_name is added before @control (simulating decorator stacking)
+            search_tool.tool_name = "search"
+
+            # GIVEN: @control decorator is applied with custom step_name
+            search_tool = control(step_name="custom_tool_name")(search_tool)
+
+            # WHEN: The decorated function is called
+            await search_tool("test query")
+
+            # THEN: Both pre and post evaluation payloads should be captured
+            assert len(captured_steps) == 2
+
+            # THEN: Custom step_name should override tool_name in both payloads
+            assert captured_steps[0]["name"] == "custom_tool_name"
+            assert captured_steps[1]["name"] == "custom_tool_name"
+            # THEN: Step should still be detected as tool type
+            assert captured_steps[0]["type"] == "tool"
