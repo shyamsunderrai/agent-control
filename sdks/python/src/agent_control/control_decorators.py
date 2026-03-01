@@ -117,11 +117,12 @@ class ControlContext:
 
         Raises:
             ControlViolationError: If any control triggers with "deny" action
+            ControlSteerError: If any control triggers with "steer" action
         """
         # Log each control evaluation
         _log_control_evaluations(result, self.trace_id, self.span_id, check_stage)
 
-        # Handle deny/warn/log actions (may raise ControlViolationError)
+        # Handle deny/steer/warn/log actions (may raise ControlViolationError, ControlSteerError)
         _handle_evaluation_result(result)
 
         # Update stats in place
@@ -169,6 +170,41 @@ class ControlViolationError(Exception):
         self.message = message
         self.metadata = metadata or {}
         super().__init__(f"Control violation [{self.control_name}]: {message}")
+
+
+class ControlSteerError(Exception):
+    """Raised when a control is triggered with 'steer' action.
+
+    This error indicates the agent should modify its approach based on
+    the provided steering context and potentially retry the operation.
+
+    Unlike ControlViolationError (deny), this is not a hard block but
+    a corrective signal that allows the application to adjust and retry.
+    """
+
+    def __init__(
+        self,
+        control_id: int | str | None = None,
+        control_name: str | None = None,
+        message: str = "Control steering required",
+        metadata: dict[str, Any] | None = None,
+        steering_context: str | None = None,
+        input_data: Any | None = None,
+        output_data: Any | None = None
+    ):
+        self.control_id = control_id
+        self.control_name = control_name or (str(control_id) if control_id else "unknown")
+        self.message = message
+        self.metadata = metadata or {}
+        self.steering_context = steering_context or self.metadata.get(
+            "steering_context", "No steering context provided"
+        )
+        self.input_data = input_data
+        self.output_data = output_data
+        super().__init__(
+            f"Control steering [{self.control_name}]: {message}\n"
+            f"Steering context: {self.steering_context}"
+        )
 
 
 def _get_current_agent() -> Any | None:
@@ -235,6 +271,12 @@ async def _evaluate(
                 )
 
                 # Convert result to dict format expected by process_result
+                # Build a lookup map for control definitions by ID
+                control_defs_by_id = {
+                    c.get("id"): c.get("control", {})
+                    for c in controls if isinstance(c, dict)
+                }
+
                 return {
                     "is_safe": result.is_safe,
                     "confidence": result.confidence,
@@ -244,6 +286,7 @@ async def _evaluate(
                             "control_id": m.control_id,
                             "control_name": m.control_name,
                             "action": m.action,
+                            "control": control_defs_by_id.get(m.control_id, {}),
                             "result": {
                                 "matched": m.result.matched,
                                 "confidence": m.result.confidence,
@@ -252,6 +295,10 @@ async def _evaluate(
                                 "metadata": m.result.metadata,
                             },
                             "control_execution_id": m.control_execution_id,
+                            "steering_context": (
+                                {"message": m.steering_context.message}
+                                if m.steering_context else None
+                            ),
                         }
                         for m in (result.matches or [])
                     ] if result.matches else None,
@@ -260,6 +307,7 @@ async def _evaluate(
                             "control_id": e.control_id,
                             "control_name": e.control_name,
                             "action": e.action,
+                            "control": control_defs_by_id.get(e.control_id, {}),
                             "result": {
                                 "matched": e.result.matched,
                                 "confidence": e.result.confidence,
@@ -268,6 +316,10 @@ async def _evaluate(
                                 "metadata": e.result.metadata,
                             },
                             "control_execution_id": e.control_execution_id,
+                            "steering_context": (
+                                {"message": e.steering_context.message}
+                                if e.steering_context else None
+                            ),
                         }
                         for e in (result.errors or [])
                     ] if result.errors else None,
@@ -276,6 +328,7 @@ async def _evaluate(
                             "control_id": nm.control_id,
                             "control_name": nm.control_name,
                             "action": nm.action,
+                            "control": control_defs_by_id.get(nm.control_id, {}),
                             "result": {
                                 "matched": nm.result.matched,
                                 "confidence": nm.result.confidence,
@@ -284,6 +337,10 @@ async def _evaluate(
                                 "metadata": nm.result.metadata,
                             },
                             "control_execution_id": nm.control_execution_id,
+                            "steering_context": (
+                                {"message": nm.steering_context.message}
+                                if nm.steering_context else None
+                            ),
                         }
                         for nm in (result.non_matches or [])
                     ] if result.non_matches else None,
@@ -410,7 +467,7 @@ def _create_evaluation_payload(
 
 
 def _handle_evaluation_result(result: dict[str, Any]) -> None:
-    """Handle evaluation result from server - raise on deny."""
+    """Handle evaluation result from server - raise on deny or steer."""
     if not result:
         logger.warning("Received empty evaluation result from server")
         return
@@ -433,36 +490,83 @@ def _handle_evaluation_result(result: dict[str, Any]) -> None:
             f"Errors: {'; '.join(error_messages)}"
         )
 
+    # CRITICAL: Handle actions in priority order: deny > steer > warn > log
+    # Check blocking actions first (deny/steer), then always log warn/log
+
     if not is_safe:
+        # Pass 1: Check for deny actions (highest priority - blocks immediately)
         for match in matches:
-            if not isinstance(match, dict):
-                logger.warning(f"Invalid match format: {match}")
+            if not isinstance(match, dict) or match.get("action", "deny") != "deny":
                 continue
 
-            action = match.get("action", "deny")
-            control_id = match.get("control_id")
-            matched_control = match.get("control_name", "unknown")
-
-            # Safely extract result message and metadata
             result_data = match.get("result") or {}
-            if isinstance(result_data, dict):
-                message = result_data.get("message", "Control triggered")
-                metadata = result_data.get("metadata", {})
-            else:
-                message = "Control triggered"
-                metadata = {}
+            message = (
+                result_data.get("message", "Control triggered")
+                if isinstance(result_data, dict)
+                else "Control triggered"
+            )
+            metadata = result_data.get("metadata", {}) if isinstance(result_data, dict) else {}
+            raise ControlViolationError(
+                control_id=match.get("control_id"),
+                control_name=match.get("control_name", "unknown"),
+                message=message,
+                metadata=metadata
+            )
 
-            if action == "deny":
-                raise ControlViolationError(
-                    control_id=control_id,
-                    control_name=matched_control,
-                    message=message,
-                    metadata=metadata
-                )
-            elif action == "warn":
-                logger.warning(f"⚠️ Control [{matched_control}]: {message}")
-            elif action == "log":
-                logger.info(f"ℹ️ Control [{matched_control}]: {message}")
+        # Pass 2: Check for steer actions (second priority - signals correction needed)
+        for match in matches:
+            if not isinstance(match, dict) or match.get("action", "deny") != "steer":
+                continue
+
+            result_data = match.get("result") or {}
+            message = (
+                result_data.get("message", "Control triggered")
+                if isinstance(result_data, dict)
+                else "Control triggered"
+            )
+            metadata = result_data.get("metadata", {}) if isinstance(result_data, dict) else {}
+
+            # Extract steering_context directly from match (now a first-class field)
+            steering_context_obj = match.get("steering_context")
+
+            # Extract message from SteeringContext object or use as string
+            if isinstance(steering_context_obj, dict):
+                steering_context = steering_context_obj.get("message", message)
+            elif isinstance(steering_context_obj, str):
+                steering_context = steering_context_obj
+            else:
+                # No steering context provided, use evaluator message
+                steering_context = message
+
+            raise ControlSteerError(
+                control_id=match.get("control_id"),
+                control_name=match.get("control_name", "unknown"),
+                message=message,
+                metadata=metadata,
+                steering_context=steering_context
+            )
+
+    # Log warn and log actions (non-blocking, always processed)
+    for match in matches:
+        if not isinstance(match, dict):
+            continue
+
+        action = match.get("action", "deny")
+        if action not in ("warn", "log"):
+            continue
+
+        result_data = match.get("result") or {}
+        message = (
+            result_data.get("message", "Control triggered")
+            if isinstance(result_data, dict)
+            else "Control triggered"
+        )
+        control_name = match.get("control_name", "unknown")
+
+        if action == "warn":
+            logger.warning(f"⚠️ Control [{control_name}]: {message}")
+        else:  # action == "log"
+            logger.info(f"ℹ️ Control [{control_name}]: {message}")
 
 
 def _log_control_evaluations(
@@ -595,7 +699,7 @@ async def _execute_with_control(
                 event_agent_name=ctx.agent_name,
             )
             ctx.process_result(result, "pre")
-        except ControlViolationError:
+        except (ControlViolationError, ControlSteerError):
             raise
         except Exception as e:
             # FAIL-SAFE: If control check fails, DO NOT execute the function
@@ -619,7 +723,7 @@ async def _execute_with_control(
                 event_agent_name=ctx.agent_name,
             )
             ctx.process_result(result, "post")
-        except ControlViolationError:
+        except (ControlViolationError, ControlSteerError):
             raise
         except Exception as e:
             logger.error(f"Post-execution control check failed: {e}")
@@ -735,4 +839,5 @@ def control(policy: str | None = None, step_name: str | None = None) -> Callable
 __all__ = [
     "control",
     "ControlViolationError",
+    "ControlSteerError",
 ]

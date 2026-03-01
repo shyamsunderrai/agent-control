@@ -90,7 +90,7 @@ class ControlExecutionEvent(BaseModel):
     )
 
     # Result
-    action: Literal["allow", "deny", "warn", "log"] = Field(
+    action: Literal["allow", "deny", "steer", "warn", "log"] = Field(
         ..., description="Action taken by the control"
     )
     matched: bool = Field(
@@ -265,7 +265,7 @@ class EventQueryRequest(BaseModel):
         control_execution_id: Filter by specific event ID
         agent_name: Filter by agent identifier
         control_ids: Filter by control IDs
-        actions: Filter by actions (allow, deny, warn, log)
+        actions: Filter by actions (allow, deny, steer, warn, log)
         matched: Filter by matched status
         check_stages: Filter by check stages (pre, post)
         applies_to: Filter by call type (llm_call, tool_call)
@@ -293,7 +293,7 @@ class EventQueryRequest(BaseModel):
     control_ids: list[int] | None = Field(
         default=None, description="Filter by control IDs"
     )
-    actions: list[Literal["allow", "deny", "warn", "log"]] | None = Field(
+    actions: list[Literal["allow", "deny", "steer", "warn", "log"]] | None = Field(
         default=None, description="Filter by actions"
     )
     matched: bool | None = Field(default=None, description="Filter by matched status")
@@ -370,6 +370,7 @@ class ControlStats(BaseModel):
         non_match_count: Number of times the control did not match
         allow_count: Number of allow actions
         deny_count: Number of deny actions
+        steer_count: Number of steer actions
         warn_count: Number of warn actions
         log_count: Number of log actions
         error_count: Number of errors during evaluation
@@ -384,6 +385,7 @@ class ControlStats(BaseModel):
     non_match_count: int = Field(..., ge=0, description="Total non-matches")
     allow_count: int = Field(..., ge=0, description="Allow actions")
     deny_count: int = Field(..., ge=0, description="Deny actions")
+    steer_count: int = Field(..., ge=0, description="Steer actions")
     warn_count: int = Field(..., ge=0, description="Warn actions")
     log_count: int = Field(..., ge=0, description="Log actions")
     error_count: int = Field(..., ge=0, description="Evaluation errors")
@@ -458,7 +460,7 @@ class TimeseriesBucket(BaseModel):
     error_count: int = Field(..., ge=0, description="Errors in bucket")
     action_counts: dict[str, int] = Field(
         default_factory=dict,
-        description="Action breakdown: {allow, deny, warn, log}",
+        description="Action breakdown: {allow, deny, steer, warn, log}",
     )
     avg_confidence: float | None = Field(
         default=None, ge=0.0, le=1.0, description="Average confidence score"
@@ -474,7 +476,7 @@ class StatsTotals(BaseModel):
 
     Invariant: execution_count = match_count + non_match_count + error_count
 
-    Matches have actions (allow, deny, warn, log) tracked in action_counts.
+    Matches have actions (allow, deny, steer, warn, log) tracked in action_counts.
     sum(action_counts.values()) == match_count
 
     Attributes:
@@ -492,7 +494,7 @@ class StatsTotals(BaseModel):
     error_count: int = Field(default=0, ge=0, description="Total errors")
     action_counts: dict[str, int] = Field(
         default_factory=dict,
-        description="Action breakdown for matches: {allow, deny, warn, log}",
+        description="Action breakdown for matches: {allow, deny, steer, warn, log}",
     )
     timeseries: list[TimeseriesBucket] | None = Field(
         default=None,
