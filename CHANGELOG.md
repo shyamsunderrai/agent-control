@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v6.3.0 (2026-03-04)
+
+### Bug Fixes
+
+- **ci**: Correct galileo contrib path in release build script
+  ([#51](https://github.com/agentcontrol/agent-control/pull/51),
+  [`2de6013`](https://github.com/agentcontrol/agent-control/commit/2de601338314b881f59847a5244b4226c74239f6))
+
+### Features
+
+- **sdk-ts**: Automate semantic-release for npm publishing
+  ([#52](https://github.com/agentcontrol/agent-control/pull/52),
+  [`2b43958`](https://github.com/agentcontrol/agent-control/commit/2b43958b6b2e850a044869f6f417194e1cb79d43))
+
+
 ## v6.2.0 (2026-03-04)
 
 ### Bug Fixes
