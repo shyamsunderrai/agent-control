@@ -2,6 +2,52 @@
 
 <!-- version list -->
 
+## v6.6.0 (2026-03-10)
+
+### Bug Fixes
+
+- **evaluators**: Migrate sqlglot rs extra to sqlglot c
+  ([#86](https://github.com/agentcontrol/agent-control/pull/86),
+  [`5e3e48c`](https://github.com/agentcontrol/agent-control/commit/5e3e48cb67b80e6035c074fba6e42cc652194813))
+
+- **infra**: Fix docker compose to make ui work
+  ([#82](https://github.com/agentcontrol/agent-control/pull/82),
+  [`5edbb6b`](https://github.com/agentcontrol/agent-control/commit/5edbb6b89801a8d4a9c333f5de93081a9ce0c593))
+
+- **ui**: Name update being saved now ([#87](https://github.com/agentcontrol/agent-control/pull/87),
+  [`919672d`](https://github.com/agentcontrol/agent-control/commit/919672dc882df4f68cc54bbea08094ee0bf0d7dd))
+
+- **ui**: Step name not getting saved ([#68](https://github.com/agentcontrol/agent-control/pull/68),
+  [`13abef9`](https://github.com/agentcontrol/agent-control/commit/13abef990a6cff0b6cd4c705651a9d12f87de517))
+
+### Documentation
+
+- **docs**: Add performance benchmarks to README
+  ([#67](https://github.com/agentcontrol/agent-control/pull/67),
+  [`ae98043`](https://github.com/agentcontrol/agent-control/commit/ae98043078d8ab01365df111a8a4f89348cf13e6))
+
+- **docs**: Add slack link to readme ([#81](https://github.com/agentcontrol/agent-control/pull/81),
+  [`b58690a`](https://github.com/agentcontrol/agent-control/commit/b58690a1f5526e52bc4ee8b5a3f01d77e8f33e8a))
+
+### Features
+
+- **examples**: Add Google ADK Agent Control examples
+  ([#69](https://github.com/agentcontrol/agent-control/pull/69),
+  [`4b83542`](https://github.com/agentcontrol/agent-control/commit/4b83542e7885cda7dd28dff86fe107dc1af7911d))
+
+- **sdk**: Add shutdown() and ashutdown() lifecycle API
+  ([#70](https://github.com/agentcontrol/agent-control/pull/70),
+  [`9e29d86`](https://github.com/agentcontrol/agent-control/commit/9e29d86cfae837954dfabd3f9984a30d4e1b1d93))
+
+- **sdk**: Migrate strands integration to be a plugin
+  ([#74](https://github.com/agentcontrol/agent-control/pull/74),
+  [`897ece3`](https://github.com/agentcontrol/agent-control/commit/897ece36602943213f4423f41c5d353c46cd7d8f))
+
+- **ui**: Serve exported Agent Control UI from the FastAPI server
+  ([#71](https://github.com/agentcontrol/agent-control/pull/71),
+  [`c140198`](https://github.com/agentcontrol/agent-control/commit/c1401985b65cfab3b77fc91cbdf494cc665c858f))
+
+
 ## v6.5.0 (2026-03-06)
 
 ### Bug Fixes
