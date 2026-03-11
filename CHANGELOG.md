@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.7.1 (2026-03-11)
+
+### Bug Fixes
+
+- **server**: Escape ILIKE pattern in evaluator-configs list endpoint
+  ([#108](https://github.com/agentcontrol/agent-control/pull/108),
+  [`cb6e89f`](https://github.com/agentcontrol/agent-control/commit/cb6e89f134bd8cea944bbb99419b3d4a26f98d50))
+
+
 ## v6.7.0 (2026-03-11)
 
 ### Bug Fixes
