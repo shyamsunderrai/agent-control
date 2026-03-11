@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.6.1 (2026-03-11)
+
+### Bug Fixes
+
+- **sdk**: Bundle evaluators in sdk wheel
+  ([#89](https://github.com/agentcontrol/agent-control/pull/89),
+  [`ea5889a`](https://github.com/agentcontrol/agent-control/commit/ea5889a1de5cd79b7b4fd59b2a914ffb7294c158))
+
+
 ## v6.6.0 (2026-03-10)
 
 ### Bug Fixes
