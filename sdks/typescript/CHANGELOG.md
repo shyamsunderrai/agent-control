@@ -1,3 +1,28 @@
+## [1.1.0](https://github.com/agentcontrol/agent-control/compare/ts-sdk-v1.0.1...ts-sdk-v1.1.0) (2026-03-11)
+
+### Features
+
+* **examples:** add Google ADK Agent Control examples ([#69](https://github.com/agentcontrol/agent-control/issues/69)) ([4b83542](https://github.com/agentcontrol/agent-control/commit/4b83542e7885cda7dd28dff86fe107dc1af7911d))
+* **infra:** publish UI image and add compose UI service ([#57](https://github.com/agentcontrol/agent-control/issues/57)) ([207c1af](https://github.com/agentcontrol/agent-control/commit/207c1af3dec13b931abd1d9d2fcaa66ecbb2dc72))
+* **sdk:** 57143 strands extra ([#59](https://github.com/agentcontrol/agent-control/issues/59)) ([97f2518](https://github.com/agentcontrol/agent-control/commit/97f25181ea4f36486cec4d195d074ccc3e077529))
+* **sdk:** add shutdown() and ashutdown() lifecycle API ([#70](https://github.com/agentcontrol/agent-control/issues/70)) ([9e29d86](https://github.com/agentcontrol/agent-control/commit/9e29d86cfae837954dfabd3f9984a30d4e1b1d93))
+* **sdk:** migrate strands integration to be a plugin ([#74](https://github.com/agentcontrol/agent-control/issues/74)) ([897ece3](https://github.com/agentcontrol/agent-control/commit/897ece36602943213f4423f41c5d353c46cd7d8f))
+* **server:** enforce admin-only control-plane mutations ([#62](https://github.com/agentcontrol/agent-control/issues/62)) ([579407f](https://github.com/agentcontrol/agent-control/commit/579407f3f1cfb5bfcbaef9f2d0496e47634c3c3b)), closes [#61](https://github.com/agentcontrol/agent-control/issues/61)
+* **ui:** serve exported Agent Control UI from the FastAPI server ([#71](https://github.com/agentcontrol/agent-control/issues/71)) ([c140198](https://github.com/agentcontrol/agent-control/commit/c1401985b65cfab3b77fc91cbdf494cc665c858f))
+
+### Bug Fixes
+
+* **docs:** add centered logo, header, and badges to README ([#92](https://github.com/agentcontrol/agent-control/issues/92)) ([39c3cbf](https://github.com/agentcontrol/agent-control/commit/39c3cbf02dc84770284463d3e8c755e2b511306c))
+* **docs:** Test all examples ([#16](https://github.com/agentcontrol/agent-control/issues/16)) ([39e95c2](https://github.com/agentcontrol/agent-control/commit/39e95c20dff4275fae9a44f305b0d1b354b3f24e))
+* **evaluators:** migrate sqlglot rs extra to sqlglot c ([#86](https://github.com/agentcontrol/agent-control/issues/86)) ([5e3e48c](https://github.com/agentcontrol/agent-control/commit/5e3e48cb67b80e6035c074fba6e42cc652194813))
+* **infra:** fix docker compose to make ui work ([#82](https://github.com/agentcontrol/agent-control/issues/82)) ([5edbb6b](https://github.com/agentcontrol/agent-control/commit/5edbb6b89801a8d4a9c333f5de93081a9ce0c593))
+* **infra:** Remove UI service from docker-compose.yml ([#91](https://github.com/agentcontrol/agent-control/issues/91)) ([330ef55](https://github.com/agentcontrol/agent-control/commit/330ef55b5e369a647476ead4456b1331c6e683c9))
+* **sdk): Revert "fix(sdk:** bundle evaluators in sdk wheel" ([#90](https://github.com/agentcontrol/agent-control/issues/90)) ([b516ea6](https://github.com/agentcontrol/agent-control/commit/b516ea6375257b2116dc68f5974ffd833fd0f783)), closes [agentcontrol/agent-control#89](https://github.com/agentcontrol/agent-control/issues/89)
+* **sdk:** bundle evaluators in sdk wheel ([#89](https://github.com/agentcontrol/agent-control/issues/89)) ([ea5889a](https://github.com/agentcontrol/agent-control/commit/ea5889a1de5cd79b7b4fd59b2a914ffb7294c158))
+* **sdk:** fix observability events not reaching the server ([#63](https://github.com/agentcontrol/agent-control/issues/63)) ([70016db](https://github.com/agentcontrol/agent-control/commit/70016db3089b65a970d81f16b2ef01556857ce2e))
+* **ui:** name update being saved now ([#87](https://github.com/agentcontrol/agent-control/issues/87)) ([919672d](https://github.com/agentcontrol/agent-control/commit/919672dc882df4f68cc54bbea08094ee0bf0d7dd))
+* **ui:** Step name not getting saved ([#68](https://github.com/agentcontrol/agent-control/issues/68)) ([13abef9](https://github.com/agentcontrol/agent-control/commit/13abef990a6cff0b6cd4c705651a9d12f87de517))
+
 ## [1.0.1](https://github.com/agentcontrol/agent-control/compare/ts-sdk-v1.0.0...ts-sdk-v1.0.1) (2026-03-04)
 
 ### Bug Fixes
