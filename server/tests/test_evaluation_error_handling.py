@@ -17,11 +17,11 @@ from .utils import create_and_assign_policy
 
 
 def test_evaluation_with_agent_scoped_evaluator_missing(client: TestClient):
-    """Test that referencing missing agent evaluator fails at policy assignment.
+    """Test that referencing a missing agent evaluator fails during control creation.
 
     Given: A control referencing agent:evaluator that doesn't exist
-    When: Attempting to assign policy
-    Then: Returns 400 with clear error message
+    When: Creating the control
+    Then: Returns 422 EVALUATOR_NOT_FOUND
     """
     # Given: an agent without evaluators
     agent_name = f"testagent-{uuid.uuid4().hex[:12]}"
@@ -47,17 +47,15 @@ def test_evaluation_with_agent_scoped_evaluator_missing(client: TestClient):
         "action": {"decision": "deny"}
     }
 
-    # When: creating the control shell
-    control_resp = client.put("/api/v1/controls", json={"name": f"control-{uuid.uuid4().hex[:8]}"})
-    assert control_resp.status_code == 200
-    control_id = control_resp.json()["control_id"]
+    # When: creating the control with a missing agent-scoped evaluator
+    set_resp = client.put(
+        "/api/v1/controls",
+        json={"name": f"control-{uuid.uuid4().hex[:8]}", "data": control_data},
+    )
 
-    # When: setting control data with a missing agent-scoped evaluator
-    set_resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": control_data})
-
-    # Then: a validation or not-found error is returned
-    # This will fail because the agent doesn't exist yet
-    assert set_resp.status_code in [404, 422]
+    # Then: the missing evaluator is surfaced deterministically
+    assert set_resp.status_code == 422
+    assert set_resp.json()["error_code"] == "EVALUATOR_NOT_FOUND"
 
 
 def test_evaluation_control_with_invalid_config_caught_early(client: TestClient):
@@ -67,12 +65,7 @@ def test_evaluation_control_with_invalid_config_caught_early(client: TestClient)
     When: Setting control data
     Then: Returns 422 with validation error
     """
-    # Given: a control shell to configure
-    control_resp = client.put("/api/v1/controls", json={"name": f"control-{uuid.uuid4().hex[:8]}"})
-    assert control_resp.status_code == 200
-    control_id = control_resp.json()["control_id"]
-
-    # When: setting control data with invalid regex config (missing required 'pattern')
+    # When: creating a control with invalid regex config (missing required 'pattern')
     control_data = {
         "description": "Test control",
         "enabled": True,
@@ -86,7 +79,10 @@ def test_evaluation_control_with_invalid_config_caught_early(client: TestClient)
         "action": {"decision": "deny"}
     }
 
-    set_resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": control_data})
+    set_resp = client.put(
+        "/api/v1/controls",
+        json={"name": f"control-{uuid.uuid4().hex[:8]}", "data": control_data},
+    )
 
     # Then: a validation error is returned
     assert set_resp.status_code == 422

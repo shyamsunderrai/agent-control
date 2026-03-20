@@ -1,6 +1,8 @@
 """Integration tests for the full policy → control chain."""
 
+import json
 import uuid
+from copy import deepcopy
 
 from fastapi.testclient import TestClient
 
@@ -38,18 +40,13 @@ from .utils import VALID_CONTROL_PAYLOAD
 def _create_control(client: TestClient, name: str | None = None, data: dict | None = None) -> int:
     """Helper: Create a control and return control_id."""
     control_name = name or f"control-{uuid.uuid4()}"
-    resp = client.put("/api/v1/controls", json={"name": control_name})
+    payload = deepcopy(VALID_CONTROL_PAYLOAD)
+    marker = json.dumps(data, sort_keys=True) if data is not None else control_name
+    payload["description"] = f"Name: {control_name}, Marker: {marker}"
+    payload["condition"]["evaluator"]["config"]["pattern"] = marker
+    resp = client.put("/api/v1/controls", json={"name": control_name, "data": payload})
     assert resp.status_code == 200
-    control_id = resp.json()["control_id"]
-
-    # Always set valid data, using name/data in description for traceability
-    payload = VALID_CONTROL_PAYLOAD.copy()
-    payload["description"] = f"Name: {control_name}, Data: {data}"
-
-    resp = client.put(f"/api/v1/controls/{control_id}/data", json={"data": payload})
-    assert resp.status_code == 200
-
-    return control_id
+    return resp.json()["control_id"]
 
 
 def test_agent_gets_controls_from_policy(client: TestClient) -> None:

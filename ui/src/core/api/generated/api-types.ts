@@ -441,13 +441,13 @@ export interface paths {
     get: operations['list_controls_api_v1_controls_get'];
     /**
      * Create a new control
-     * @description Create a new control with a unique name and empty data.
+     * @description Create a new control with a unique name.
      *
      *     Controls define protection logic and can be added to policies.
-     *     Use the PUT /{control_id}/data endpoint to set control configuration.
+     *     Control data is required and is validated before anything is inserted.
      *
      *     Args:
-     *         request: Control creation request with unique name
+     *         request: Control creation request with unique name and data
      *         db: Database session (injected)
      *
      *     Returns:
@@ -1961,6 +1961,8 @@ export interface components {
     };
     /** CreateControlRequest */
     CreateControlRequest: {
+      /** @description Control definition to validate and store during creation */
+      data: components['schemas']['ControlDefinition-Input'];
       /**
        * Name
        * @description Unique control name (letters, numbers, hyphens, underscores)
@@ -2928,7 +2930,7 @@ export interface components {
       enabled?: boolean | null;
       /**
        * Name
-       * @description New name for the control
+       * @description New control name (letters, numbers, hyphens, underscores)
        */
       name?: string | null;
     };
@@ -3335,10 +3337,6 @@ export interface components {
     };
     /** ValidationError */
     ValidationError: {
-      /** Context */
-      ctx?: Record<string, never>;
-      /** Input */
-      input?: unknown;
       /** Location */
       loc: (string | number)[];
       /** Message */
