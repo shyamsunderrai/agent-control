@@ -1,3 +1,14 @@
+## [2.1.0](https://github.com/agentcontrol/agent-control/compare/ts-sdk-v2.0.0...ts-sdk-v2.1.0) (2026-03-20)
+
+### Features
+
+* **examples:** Feat/crewai examples expansion port ([#142](https://github.com/agentcontrol/agent-control/issues/142)) ([905e83b](https://github.com/agentcontrol/agent-control/commit/905e83b8252e71b2449a156f73c9d97576c017b1))
+
+### Bug Fixes
+
+* **server:** require control data on create ([#139](https://github.com/agentcontrol/agent-control/issues/139)) ([3e4935b](https://github.com/agentcontrol/agent-control/commit/3e4935b1efadfa542b061543e1ed3d2070236740)), closes [#138](https://github.com/agentcontrol/agent-control/issues/138)
+* **server:** separate compose host port overrides from runtime ports ([#137](https://github.com/agentcontrol/agent-control/issues/137)) ([da05f98](https://github.com/agentcontrol/agent-control/commit/da05f98f39703a8119861daa72fcf57d30f795f6))
+
 ## [2.0.0](https://github.com/agentcontrol/agent-control/compare/ts-sdk-v1.1.0...ts-sdk-v2.0.0) (2026-03-18)
 
 ### ⚠ BREAKING CHANGES
