@@ -13,7 +13,7 @@ import { useState } from 'react';
 
 import type { ProblemDetail } from '@/core/api/types';
 
-import { JsonEditorView } from './json-editor-view';
+import { EvaluatorJsonView } from './evaluator-json-view';
 import type { ConfigViewMode } from './types';
 
 const DEFAULT_HEIGHT = 450;
@@ -124,13 +124,10 @@ export function EvaluatorConfigSection({
               </Text>
             )
           ) : (
-            <JsonEditorView
+            <EvaluatorJsonView
               onValidateConfig={onValidateConfig}
               onValidationStatusChange={setValidationStatus}
               height={height}
-              label="Configuration (JSON)"
-              tooltip="Raw evaluator configuration in JSON format"
-              testId="raw-json-textarea"
               {...jsonViewProps}
             />
           )}
