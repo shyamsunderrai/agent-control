@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v7.2.0 (2026-03-26)
+
+### Bug Fixes
+
+- **infra**: Rename dev pg container name
+  ([`c5354e3`](https://github.com/agentcontrol/agent-control/commit/c5354e3373c8502debfc77bc1fa03c05e53cd542))
+
+- **ui**: Improve edit control ux, no layout shift, consistent spacing
+  ([#122](https://github.com/agentcontrol/agent-control/pull/122),
+  [`76d67b9`](https://github.com/agentcontrol/agent-control/commit/76d67b9c99ff34497ccd38ec3b7a78f9c09f41d4))
+
+### Chores
+
+- **release**: Ts sdk v2.1.0 [skip ci]
+  ([`1a6f731`](https://github.com/agentcontrol/agent-control/commit/1a6f7312693c6763808666c1e652a1552a334a00))
+
+### Features
+
+- **server**: Override PG password in dockerfile
+  ([#148](https://github.com/agentcontrol/agent-control/pull/148),
+  [`5d70c7d`](https://github.com/agentcontrol/agent-control/commit/5d70c7dc756e3dc99ec7f0a3703039add8792ad8))
+
+- **server**: Override PG password in dockerfile
+  ([#143](https://github.com/agentcontrol/agent-control/pull/143),
+  [`b364cab`](https://github.com/agentcontrol/agent-control/commit/b364cab186ab7d81bb945c7a4577dd342d5748f5))
+
+- **ui**: Add full control JSON editing and create-from-JSON
+  ([#147](https://github.com/agentcontrol/agent-control/pull/147),
+  [`e685ed0`](https://github.com/agentcontrol/agent-control/commit/e685ed0cf21325b637647a4b61ac0b0c31fbb539))
+
+
 ## v7.1.0 (2026-03-20)
 
 ### Bug Fixes
