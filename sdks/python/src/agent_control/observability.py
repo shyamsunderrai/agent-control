@@ -54,7 +54,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from agent_control_telemetry.sinks import BaseControlEventSink, ControlEventSink, SinkResult
+from agent_control_telemetry.sinks import (
+    BaseControlEventSink,
+    ControlEventSink,
+    SinkResult,
+)
 
 from agent_control.settings import configure_settings, get_settings
 

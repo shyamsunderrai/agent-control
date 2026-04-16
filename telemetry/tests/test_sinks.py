@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from agent_control_models import ControlExecutionEvent
+
 from agent_control_telemetry import (
     BaseAsyncControlEventSink,
     BaseControlEventSink,
