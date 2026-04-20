@@ -1,0 +1,122 @@
+---
+# Agent Control Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-control-server
+  namespace: agent-control-demo
+  labels:
+    app: agent-control-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-control-server
+  template:
+    metadata:
+      labels:
+        app: agent-control-server
+    spec:
+      containers:
+      - name: server
+        image: galileoai/agent-control-server:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: AGENT_CONTROL_DB_URL
+          value: "postgresql+psycopg://agent_control:agent_control@postgres:5432/agent_control"
+        - name: AGENT_CONTROL_HOST
+          value: "0.0.0.0"
+        - name: AGENT_CONTROL_PORT
+          value: "8000"
+        - name: AGENT_CONTROL_API_KEY_ENABLED
+          value: "false"
+        - name: AGENT_CONTROL_CORS_ORIGINS
+          value: "http://localhost:4000,http://agent-control-ui:4000"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          failureThreshold: 12
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-control
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: agent-control-server
+  ports:
+  - port: 8000
+    targetPort: 8000
+    nodePort: 30800
+---
+# Agent Control UI
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-control-ui
+  namespace: agent-control-demo
+  labels:
+    app: agent-control-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-control-ui
+  template:
+    metadata:
+      labels:
+        app: agent-control-ui
+    spec:
+      containers:
+      - name: ui
+        image: galileoai/agent-control-ui:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 4000
+        env:
+        - name: AGENT_CONTROL_SERVER_URL
+          value: "http://agent-control:8000"
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://localhost:30800"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 4000
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 6
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-control-ui
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: agent-control-ui
+  ports:
+  - port: 4000
+    targetPort: 4000
+    nodePort: 30400

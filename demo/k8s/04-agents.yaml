@@ -1,0 +1,306 @@
+---
+# Common ConfigMap shared by all agents
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+  namespace: agent-control-demo
+data:
+  AGENT_CONTROL_URL: "http://agent-control:8000"
+  OLLAMA_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3.2:3b"
+---
+# ── Loan Underwriting Agent ───────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan-underwriting-agent
+  namespace: agent-control-demo
+  labels:
+    app: loan-underwriting-agent
+    mas-airg: fairness-transparency-audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loan-underwriting-agent
+  template:
+    metadata:
+      labels:
+        app: loan-underwriting-agent
+    spec:
+      containers:
+      - name: agent
+        image: agent-control-demo-agents:latest
+        imagePullPolicy: Never   # loaded via k3d image import
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: agent-config
+        env:
+        - name: AGENT_TYPE
+          value: loan_underwriting
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan-underwriting-agent
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: loan-underwriting-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30081
+---
+# ── Customer Support Agent ────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-support-agent
+  namespace: agent-control-demo
+  labels:
+    app: customer-support-agent
+    mas-airg: data-management-cybersecurity-access
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-support-agent
+  template:
+    metadata:
+      labels:
+        app: customer-support-agent
+    spec:
+      containers:
+      - name: agent
+        image: agent-control-demo-agents:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: agent-config
+        env:
+        - name: AGENT_TYPE
+          value: customer_support
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-support-agent
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: customer-support-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30082
+---
+# ── Trade Execution Agent ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-execution-agent
+  namespace: agent-control-demo
+  labels:
+    app: trade-execution-agent
+    mas-airg: human-oversight-cybersecurity-market
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trade-execution-agent
+  template:
+    metadata:
+      labels:
+        app: trade-execution-agent
+    spec:
+      containers:
+      - name: agent
+        image: agent-control-demo-agents:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: agent-config
+        env:
+        - name: AGENT_TYPE
+          value: trade_execution
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trade-execution-agent
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: trade-execution-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30083
+---
+# ── AML Compliance Agent ──────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aml-compliance-agent
+  namespace: agent-control-demo
+  labels:
+    app: aml-compliance-agent
+    mas-airg: monitoring-human-oversight-audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aml-compliance-agent
+  template:
+    metadata:
+      labels:
+        app: aml-compliance-agent
+    spec:
+      containers:
+      - name: agent
+        image: agent-control-demo-agents:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: agent-config
+        env:
+        - name: AGENT_TYPE
+          value: aml_compliance
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aml-compliance-agent
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: aml-compliance-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30084
+---
+# ── Report Generation Agent ───────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-generation-agent
+  namespace: agent-control-demo
+  labels:
+    app: report-generation-agent
+    mas-airg: cybersecurity-data-quality-change-mgmt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-generation-agent
+  template:
+    metadata:
+      labels:
+        app: report-generation-agent
+    spec:
+      containers:
+      - name: agent
+        image: agent-control-demo-agents:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: agent-config
+        env:
+        - name: AGENT_TYPE
+          value: report_generation
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-generation-agent
+  namespace: agent-control-demo
+spec:
+  type: NodePort
+  selector:
+    app: report-generation-agent
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30085
