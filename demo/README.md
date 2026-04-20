@@ -517,28 +517,35 @@ This gives a compliance officer or auditor a single pane of glass across the ent
 ## Repository Structure
 
 ```
-demo/
-├── README.md                    ← This file
-├── agents/
-│   ├── Dockerfile               ← Single image for all 5 agents
-│   ├── requirements.txt         ← Agent Python dependencies
-│   ├── main.py                  ← FastAPI entrypoint, lifespan init
-│   ├── common.py                ← Shared ScenarioResult, Ollama client, parse_matches
-│   ├── loan_underwriting.py     ← 3 MAS 4.3/4.4/4.8 scenarios
-│   ├── customer_support.py      ← 4 MAS 4.2/4.7/4.1 scenarios
-│   ├── trade_execution.py       ← 4 MAS 4.5/4.7/4.3 scenarios
-│   ├── aml_compliance.py        ← 3 MAS 4.6/4.5/4.8 scenarios
-│   ├── report_generation.py     ← 5 MAS 4.7/4.2/4.8 scenarios
-│   └── dist/                    ← Pre-built SDK wheels (populated by build.py)
-├── k8s/
-│   ├── 00-namespace.yaml        ← agent-control-demo namespace
-│   ├── 01-postgres.yaml         ← PostgreSQL with PVC
-│   ├── 02-agent-control.yaml    ← Server (NodePort 30800) + UI (NodePort 30400)
-│   ├── 03-ollama.yaml           ← Ollama with llama3.2:3b pull initContainer
-│   └── 04-agents.yaml           ← 5 agent deployments + services (NodePorts 30081–30085)
-├── policies/
-│   └── setup_policies.py        ← Creates 5 policies, 17 controls, assigns to agents
-└── demo_runner.py               ← Rich terminal demo runner (19 scenarios)
+agent-control/
+├── README.md                         ← This file
+├── scripts/
+│   └── build.py                      ← Builds SDK + evaluator wheels
+├── demo/
+│   ├── demo_runner.py                ← Rich terminal demo runner (19 scenarios)
+│   ├── agents/
+│   │   ├── Dockerfile                ← Single image for all 5 agents
+│   │   ├── requirements.txt          ← Agent Python dependencies
+│   │   ├── main.py                   ← FastAPI entrypoint, lifespan init
+│   │   ├── common.py                 ← Shared ScenarioResult, Ollama client
+│   │   ├── loan_underwriting.py      ← 3 MAS 4.3/4.4/4.8 scenarios
+│   │   ├── customer_support.py       ← 4 MAS 4.2/4.7/4.1 scenarios
+│   │   ├── trade_execution.py        ← 4 MAS 4.5/4.7/4.3 scenarios
+│   │   ├── aml_compliance.py         ← 3 MAS 4.6/4.5/4.8 scenarios
+│   │   ├── report_generation.py      ← 5 MAS 4.7/4.2/4.8 scenarios
+│   │   └── dist/                     ← Pre-built SDK wheels (populated by build.py)
+│   ├── k8s/
+│   │   ├── 00-namespace.yaml         ← agent-control-demo namespace
+│   │   ├── 01-postgres.yaml          ← PostgreSQL with PVC
+│   │   ├── 02-agent-control.yaml     ← Server (NodePort 30800) + UI (NodePort 30400)
+│   │   ├── 03-ollama.yaml            ← Ollama with llama3.2:3b pull initContainer
+│   │   └── 04-agents.yaml            ← 5 agent deployments (NodePorts 30081–30085)
+│   └── policies/
+│       └── setup_policies.py         ← Creates 5 policies, 17 controls, assigns to agents
+├── sdks/
+│   └── python/                       ← Agent Control Python SDK source
+└── evaluators/
+    └── builtin/                      ← Built-in evaluators (regex, list, json, sql)
 ```
 
 ---
